@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>星云罗盘 - 扫描结果</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="app-layout">
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <h2>星云罗盘 - 资产测绘平台</h2>
+            </div>
+<ul class="sidebar-nav">
+    <li><a href="/tasks">扫描任务</a></li>
+    <li><a href="/docs">文档说明</a></li>
+    <li><a href="/dns">DNS查询</a></li>
+    <li><a href="/settings">系统设置</a></li>
+</ul>
+            <div class="sidebar-footer">
+                <button class="btn btn-sm" onclick="showChangePwd()">修改密码</button>
+                <button class="btn btn-sm btn-danger" onclick="handleLogout()">退出登录</button>
+            </div>
+        </nav>
+        <main class="main-content">
+            <header class="page-header">
+                <h1><a href="/tasks" style="text-decoration:none;color:inherit">&larr;</a> <span id="resultTaskName">扫描结果</span></h1>
+                <div style="display:flex;align-items:center;gap:10px">
+                    <span id="resultScanMode" class="badge badge-completed" style="font-size:12px;padding:4px 12px">扫描模式</span>
+                    <button id="exportBtn" class="btn btn-success" onclick="exportResults()">导出 XLSX</button>
+                </div>
+            </header>
+
+            <div class="stats-row" id="statsRow">
+                <div class="stat-card"><div class="stat-value" id="statTotal">0</div><div class="stat-label">端口总数</div></div>
+                <div class="stat-card stat-open"><div class="stat-value" id="statOpen">0</div><div class="stat-label">开放</div></div>
+                <div class="stat-card stat-filtered"><div class="stat-value" id="statFiltered">0</div><div class="stat-label">过滤</div></div>
+                <div class="stat-card stat-services"><div class="stat-value" id="statServices">0</div><div class="stat-label">服务识别</div></div>
+                <div class="stat-card" style="border-left:3px solid var(--accent)"><div class="stat-value" id="statHostsWithPorts" style="color:var(--accent)">0</div><div class="stat-label">有开放端口 IP</div></div>
+                <div class="stat-card" style="border-left:3px solid #06b6d4"><div class="stat-value" id="statAliveHosts" style="color:#06b6d4">0</div><div class="stat-label">存活主机</div></div>
+            </div>
+
+            <div class="card" style="margin-top:16px">
+                <div class="table-toolbar">
+                    <input type="text" id="searchInput" placeholder="搜索 IP/服务/版本..." oninput="searchResults()">
+                </div>
+                <div class="table-wrapper">
+                    <table id="resultsTable">
+                        <thead>
+                            <tr>
+                                <th>IP</th>
+                                <th>端口</th>
+                                <th>协议</th>
+                                <th>状态</th>
+                                <th>服务</th>
+                                <th>产品</th>
+                                <th>版本</th>
+                                <th>操作系统</th>
+                            </tr>
+                        </thead>
+                        <tbody id="resultsBody">
+                            <tr><td colspan="8" class="loading">加载中...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div id="pagination" class="pagination-bar" style="display:none;margin-top:12px;align-items:center;justify-content:space-between">
+                    <div class="pagination-info">
+                        <span id="paginationInfo">共 0 条记录</span>
+                    </div>
+                    <div class="pagination-controls">
+                        <span class="pagination-hint">每页</span>
+                        <select id="pageSizeSelect" class="pagination-select" onchange="changePageSize(this.value)">
+                            <option value="20">20</option>
+                            <option value="50" selected>50</option>
+                            <option value="100">100</option>
+                            <option value="200">200</option>
+                        </select>
+                        <span class="pagination-hint">条</span>
+                        <button id="prevPageBtn" class="btn btn-sm pagination-btn" onclick="prevPage()" disabled>上一页</button>
+                        <span id="pageIndicator" class="pagination-indicator">第 1/1 页</span>
+                        <button id="nextPageBtn" class="btn btn-sm pagination-btn" onclick="nextPage()" disabled>下一页</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row-stretch" id="resultBottomRow" style="margin-top:16px">
+                <div class="card">
+                    <h3 style="font-size:15px;margin-bottom:12px">服务分布</h3>
+                    <div id="serviceChart" class="chart-container" style="min-height:40px"></div>
+                </div>
+                <div class="card">
+                    <h3 style="font-size:15px;margin-bottom:12px">主机端口概览</h3>
+                    <div id="hostSummary" class="host-summary-list"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="changePwdModal" class="modal" style="display:none">
+        <div class="modal-content" style="max-width:400px">
+            <span class="modal-close" onclick="closeModal('changePwdModal')">&times;</span>
+            <h2>修改密码</h2>
+            <form onsubmit="return handleChangePwd(event)">
+                <div class="form-group">
+                    <label for="oldPassword">当前密码</label>
+                    <input type="password" id="oldPassword" required>
+                </div>
+                <div class="form-group">
+                    <label for="newPassword">新密码</label>
+                    <input type="password" id="newPassword" required>
+                </div>
+                <div class="form-group">
+                    <label for="confirmPassword">确认新密码</label>
+                    <input type="password" id="confirmPassword" required>
+                </div>
+                <div id="changePwdError" class="form-error" style="display:none"></div>
+                <button type="submit" class="btn btn-primary btn-full">确认修改</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

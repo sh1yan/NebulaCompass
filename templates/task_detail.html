@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>星云罗盘 - 任务详情</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="app-layout">
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <h2>星云罗盘 - 资产测绘平台</h2>
+            </div>
+<ul class="sidebar-nav">
+    <li><a href="/tasks">扫描任务</a></li>
+    <li><a href="/docs">文档说明</a></li>
+    <li><a href="/dns">DNS查询</a></li>
+    <li><a href="/settings">系统设置</a></li>
+</ul>
+            <div class="sidebar-footer">
+                <button class="btn btn-sm" onclick="showChangePwd()">修改密码</button>
+                <button class="btn btn-sm btn-danger" onclick="handleLogout()">退出登录</button>
+            </div>
+        </nav>
+        <main class="main-content">
+            <header class="page-header">
+                <h1><a href="/tasks" style="text-decoration:none;color:inherit">&larr;</a> 任务详情</h1>
+            </header>
+
+            <div id="taskInfo" class="card">
+                <div class="loading">加载中...</div>
+            </div>
+
+            <div id="taskProgress" class="card" style="margin-top:16px;display:none">
+                <h3>扫描进度</h3>
+                <div class="phase-indicator">
+                    <div class="phase-step" id="phase-idle">等待</div>
+                    <div class="phase-step" id="phase-ping_scan">存活探测</div>
+                    <div class="phase-step" id="phase-port_scan">端口扫描</div>
+                    <div class="phase-step" id="phase-service_scan">服务识别</div>
+                    <div class="phase-step" id="phase-completed">完成</div>
+                </div>
+                <div class="progress-bar">
+                    <div id="progressFill" class="progress-fill" style="width:0%"></div>
+                </div>
+                <div class="progress-info">
+                    <span id="progressText">0%</span>
+                    <span id="elapsedText">耗时: 0s</span>
+                </div>
+                <div id="phaseMessage" class="phase-message">等待开始...</div>
+            </div>
+
+            <div id="taskActions" class="card" style="margin-top:16px;text-align:center;display:none">
+                <button id="startBtn" class="btn btn-primary" onclick="startTask()">开始扫描</button>
+                <button id="cancelBtn" class="btn btn-danger" onclick="cancelTask()" style="display:none">取消任务</button>
+                <button id="viewResultsBtn" class="btn btn-success" onclick="viewResults()" style="display:none">查看结果</button>
+                <button id="viewOutputBtn" class="btn btn-sm" onclick="viewOutput()" style="display:none">实时输出</button>
+            </div>
+
+            <div id="taskSummary" class="card" style="margin-top:16px;display:none">
+                <h3>扫描摘要</h3>
+                <div id="summaryContent" class="summary-grid"></div>
+            </div>
+
+            <div id="liveOutputSection" class="card" style="margin-top:16px;display:none">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                    <h3 style="margin:0">实时输出</h3>
+                    <div style="display:flex;gap:8px;align-items:center">
+                        <span id="detailOutputPhase" class="output-phase-labels" style="font-size:12px;color:var(--text-muted)"></span>
+                    </div>
+                </div>
+                <div id="detailOutputContainer" class="detail-output-container">
+                    <div id="detailOutputLines" class="output-lines">
+                        <div class="output-placeholder" style="color:#8b949e;font-style:italic;padding:8px">等待扫描输出...</div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="changePwdModal" class="modal" style="display:none">
+        <div class="modal-content" style="max-width:400px">
+            <span class="modal-close" onclick="closeModal('changePwdModal')">&times;</span>
+            <h2>修改密码</h2>
+            <form onsubmit="return handleChangePwd(event)">
+                <div class="form-group">
+                    <label for="oldPassword">当前密码</label>
+                    <input type="password" id="oldPassword" required>
+                </div>
+                <div class="form-group">
+                    <label for="newPassword">新密码</label>
+                    <input type="password" id="newPassword" required>
+                </div>
+                <div class="form-group">
+                    <label for="confirmPassword">确认新密码</label>
+                    <input type="password" id="confirmPassword" required>
+                </div>
+                <div id="changePwdError" class="form-error" style="display:none"></div>
+                <button type="submit" class="btn btn-primary btn-full">确认修改</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="confirmModal" class="modal confirm-modal" style="display:none">
+        <div class="modal-content">
+            <div class="confirm-icon" id="confirmIcon">&#9888;</div>
+            <div class="confirm-title" id="confirmTitle">确认操作</div>
+            <div class="confirm-message" id="confirmMessage">确定要执行此操作吗？</div>
+            <div class="confirm-actions">
+                <button class="btn" onclick="closeConfirmModal()">取消</button>
+                <button class="btn btn-danger" id="confirmActionBtn" onclick="executeConfirmedAction()">确认</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

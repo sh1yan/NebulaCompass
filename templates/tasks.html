@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>星云罗盘 - 任务管理</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="app-layout">
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <h2>星云罗盘 - 资产测绘平台</h2>
+            </div>
+            <ul class="sidebar-nav">
+                <li><a href="/tasks" class="active">扫描任务</a></li>
+                <li><a href="/docs">文档说明</a></li>
+                <li><a href="/dns">DNS查询</a></li>
+                <li><a href="/settings">系统设置</a></li>
+            </ul>
+            <div class="sidebar-footer">
+                <button id="changePwdBtn" class="btn btn-sm" onclick="showChangePwd()">修改密码</button>
+                <button class="btn btn-sm btn-danger" onclick="handleLogout()">退出登录</button>
+            </div>
+        </nav>
+        <main class="main-content">
+            <header class="page-header">
+                <h1>扫描任务</h1>
+                <div class="page-header-actions">
+                    <button class="btn btn-sm btn-outline" onclick="refreshTasks()">&#x21bb; 刷新</button>
+                    <button class="btn btn-primary" onclick="showCreateTask()">+ 新建任务</button>
+                </div>
+            </header>
+
+            <div id="taskList" class="task-list">
+                <div class="loading">加载中...</div>
+            </div>
+        </main>
+    </div>
+
+    <!-- 新建任务弹窗 -->
+    <div id="createTaskModal" class="modal" style="display:none">
+        <div class="modal-content" style="max-width:520px">
+            <span class="modal-close" onclick="closeModal('createTaskModal')">&times;</span>
+            <h2>新建扫描任务</h2>
+            <form id="createTaskForm" onsubmit="return handleCreateTask(event)">
+                <div class="scan-mode-group">
+                    <label>扫描模式</label>
+                    <div class="scan-mode-options" id="scanModeOptions">
+                        <label class="scan-mode-option selected" data-mode="full" onclick="selectScanMode(this)">
+                            <input type="radio" name="scan_mode" value="full" checked> 全套扫描
+                        </label>
+                        <label class="scan-mode-option" data-mode="alive_only" onclick="selectScanMode(this)">
+                            <input type="radio" name="scan_mode" value="alive_only"> 存活探测
+                        </label>
+                        <label class="scan-mode-option" data-mode="port_only" onclick="selectScanMode(this)">
+                            <input type="radio" name="scan_mode" value="port_only"> 端口扫描
+                        </label>
+                        <label class="scan-mode-option" data-mode="service_only" onclick="selectScanMode(this)">
+                            <input type="radio" name="scan_mode" value="service_only"> 服务识别
+                        </label>
+                        <label class="scan-mode-option" data-mode="nmap_port_scan" onclick="selectScanMode(this)">
+                            <input type="radio" name="scan_mode" value="nmap_port_scan"> Nmap 端口扫描
+                        </label>
+                    </div>
+                </div>
+                <div id="scanModeHint" class="scan-mode-hint" style="display:block">
+                    默认扫描流程：存活探测 &rarr; Masscan端口扫描 &rarr; 服务版本识别
+                </div>
+                <div class="form-group">
+                    <label for="taskName">任务名称</label>
+                    <input type="text" id="taskName" placeholder="例如: 内网A段扫描" required>
+                </div>
+                <div class="form-group">
+                    <label for="taskTarget">扫描目标</label>
+                    <textarea id="taskTarget" rows="3" placeholder="每行一个：&#10;192.168.1.0/24&#10;10.0.0.1&#10;172.16.0.0/16" required></textarea>
+                    <small class="form-hint" id="targetHint">支持多个目标，每行一个。支持 CIDR、IP 范围、单个 IP</small>
+                </div>
+                <div class="csv-upload-area">
+                    <label class="csv-upload-btn" onclick="document.getElementById('csvFileInput').click()">
+                        &#128194; 导入 CSV/IP 列表
+                    </label>
+                    <input type="file" id="csvFileInput" accept=".csv,.txt" onchange="handleCSVImport(event)">
+                    <span id="csvFileInfo" class="csv-file-info"></span>
+                </div>
+                <div class="form-group" id="portRangeGroup">
+                    <label for="taskPortRange">端口范围</label>
+                    <input type="text" id="taskPortRange" placeholder="例如: 1-65535 (默认)" value="1-65535">
+                </div>
+                <button type="submit" class="btn btn-primary btn-full">创建并开始扫描</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 修改密码弹窗 -->
+    <div id="changePwdModal" class="modal" style="display:none">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeModal('changePwdModal')">&times;</span>
+            <h2>修改密码</h2>
+            <form id="changePwdForm" onsubmit="return handleChangePwd(event)">
+                <div class="form-group">
+                    <label for="oldPassword">当前密码</label>
+                    <input type="password" id="oldPassword" required>
+                </div>
+                <div class="form-group">
+                    <label for="newPassword">新密码</label>
+                    <input type="password" id="newPassword" required>
+                </div>
+                <div class="form-group">
+                    <label for="confirmPassword">确认新密码</label>
+                    <input type="password" id="confirmPassword" required>
+                </div>
+                <div id="changePwdError" class="form-error" style="display:none"></div>
+                <button type="submit" class="btn btn-primary btn-full">确认修改</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 二次确认弹窗 -->
+    <div id="confirmModal" class="modal confirm-modal" style="display:none">
+        <div class="modal-content">
+            <div class="confirm-icon" id="confirmIcon">&#9888;</div>
+            <div class="confirm-title" id="confirmTitle">确认操作</div>
+            <div class="confirm-message" id="confirmMessage">确定要执行此操作吗？</div>
+            <div class="confirm-actions">
+                <button class="btn" onclick="closeConfirmModal()">取消</button>
+                <button class="btn btn-danger" id="confirmActionBtn" onclick="executeConfirmedAction()">确认</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

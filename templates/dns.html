@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>星云罗盘 - DNS查询</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="app-layout">
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <h2>星云罗盘 - 资产测绘平台</h2>
+            </div>
+            <ul class="sidebar-nav">
+                <li><a href="/tasks">扫描任务</a></li>
+                <li><a href="/docs">文档说明</a></li>
+                <li><a href="/dns" class="active">DNS查询</a></li>
+                <li><a href="/settings">系统设置</a></li>
+            </ul>
+            <div class="sidebar-footer">
+                <button class="btn btn-sm" onclick="showChangePwd()">修改密码</button>
+                <button class="btn btn-sm btn-danger" onclick="handleLogout()">退出登录</button>
+            </div>
+        </nav>
+        <main class="main-content">
+            <header class="page-header">
+                <h1>DNS查询</h1>
+            </header>
+
+            <div class="card">
+                <h3>单域名查询</h3>
+                <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px">输入一个域名，快速查询其对应的 IP 地址</p>
+                <div class="dns-single-query">
+                    <input type="text" id="singleDomainInput" placeholder="例如: www.example.com" onkeydown="if(event.key==='Enter') querySingleDomain()">
+                    <button class="btn btn-primary" onclick="querySingleDomain()">查询</button>
+                </div>
+                <div id="singleResult" style="display:none"></div>
+            </div>
+
+            <div class="card" style="margin-top:16px">
+                <h3>批量域名解析</h3>
+                <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px">粘贴域名列表（每行一个），批量查询对应的 IP 地址。支持逗号、分号、Tab 分隔的格式。</p>
+                <div class="dns-batch-area">
+                    <textarea id="domainList" placeholder="每行输入一个域名，例如：&#10;www.example.com&#10;google.com&#10;baidu.com&#10;github.com&#10;也可以粘贴 CSV 格式：&#10;example.com,192.168.1.1"></textarea>
+                </div>
+                <div class="dns-actions">
+                    <button class="btn btn-primary" onclick="startBatchResolve()">&#9654; 开始解析</button>
+                    <button class="btn btn-success" id="exportBtn" onclick="exportDNSResults()" style="display:none">&#128229; 导出 CSV</button>
+                    <button class="btn btn-outline" onclick="clearDNSResults()">清空结果</button>
+                </div>
+            </div>
+
+            <div id="dnsResultsArea" style="display:none">
+                <div class="dns-stats" id="dnsStats"></div>
+                <div class="card">
+                    <div class="dns-table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="width:40px">#</th>
+                                    <th>域名</th>
+                                    <th>IP 地址</th>
+                                    <th style="width:80px">状态</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dnsResultsBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="changePwdModal" class="modal" style="display:none">
+        <div class="modal-content" style="max-width:400px">
+            <span class="modal-close" onclick="closeModal('changePwdModal')">&times;</span>
+            <h2>修改密码</h2>
+            <form onsubmit="return handleChangePwd(event)">
+                <div class="form-group">
+                    <label for="oldPassword">当前密码</label>
+                    <input type="password" id="oldPassword" required>
+                </div>
+                <div class="form-group">
+                    <label for="newPassword">新密码</label>
+                    <input type="password" id="newPassword" required>
+                </div>
+                <div class="form-group">
+                    <label for="confirmPassword">确认新密码</label>
+                    <input type="password" id="confirmPassword" required>
+                </div>
+                <div id="changePwdError" class="form-error" style="display:none"></div>
+                <button type="submit" class="btn btn-primary btn-full">确认修改</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

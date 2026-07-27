@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>星云罗盘 - 登录</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="login-body">
+    <div class="login-container">
+        <div class="login-header">
+            <h1>星云罗盘 - 资产测绘平台</h1>
+            <p>请登录以继续</p>
+        </div>
+        <form id="loginForm" class="login-form" onsubmit="return handleLogin(event)">
+            <div class="form-group">
+                <label for="username">用户名</label>
+                <input type="text" id="username" name="username" placeholder="admin" required autofocus>
+            </div>
+            <div class="form-group">
+                <label for="password">密码</label>
+                <input type="password" id="password" name="password" placeholder="admin123" required>
+            </div>
+            <div id="loginError" class="form-error" style="display:none"></div>
+            <button type="submit" class="btn btn-primary btn-full">登录</button>
+        </form>
+    </div>
+    <script>
+        async function handleLogin(e) {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const errorEl = document.getElementById('loginError');
+
+            try {
+                const resp = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({username, password})
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    document.cookie = `session_token=${data.token}; path=/; max-age=86400`;
+                    window.location.href = '/tasks';
+                } else {
+                    errorEl.textContent = data.message || '登录失败';
+                    errorEl.style.display = 'block';
+                }
+            } catch (err) {
+                errorEl.textContent = '网络错误，请重试';
+                errorEl.style.display = 'block';
+            }
+            return false;
+        }
+    </script>
+</body>
+</html>

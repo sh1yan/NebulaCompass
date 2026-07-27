@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>星云罗盘 - 实时输出</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="app-layout">
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <h2>星云罗盘 - 资产测绘平台</h2>
+            </div>
+            <ul class="sidebar-nav">
+                <li><a href="/tasks" title="扫描任务">扫描任务</a></li>
+                <li><a href="/docs" title="文档说明">文档说明</a></li>
+                <li><a href="/dns" title="DNS查询">DNS查询</a></li>
+                <li><a href="/settings" title="系统设置">系统设置</a></li>
+            </ul>
+            <div class="sidebar-footer">
+                <button class="btn btn-sm" onclick="showChangePwd()">修改密码</button>
+                <button class="btn btn-sm btn-danger" onclick="handleLogout()">退出登录</button>
+            </div>
+        </nav>
+        <main class="main-content">
+            <header class="page-header">
+                <h1><a href="/tasks" style="text-decoration:none;color:inherit">&larr;</a> <span id="outputTaskName">实时输出</span></h1>
+                <div class="page-header-actions">
+                    <span id="outputStatusBadge" class="status-badge status-pending">等待中</span>
+                    <button id="clearOutputBtn" class="btn btn-sm" onclick="clearOutput()">&#128465; 清屏</button>
+                    <button id="scrollLockBtn" class="btn btn-sm" onclick="toggleScroll()">&#128204; 锁定滚动</button>
+                </div>
+            </header>
+
+            <div id="outputProgress" class="output-progress-bar">
+                <div id="outputProgressFill" class="output-progress-fill" style="width:0%"></div>
+            </div>
+
+            <div id="outputContainer" class="output-container">
+                <div id="outputLines" class="output-lines">
+                    <div class="output-placeholder">等待扫描输出...</div>
+                </div>
+            </div>
+
+            <div class="output-toolbar">
+                <div class="output-phase-labels">
+                    <span class="phase-dot ping-dot"></span>ping探测
+                    <span class="phase-dot port-dot"></span>端口扫描
+                    <span class="phase-dot svc-dot"></span>服务识别
+                    <span class="phase-dot stderr-dot"></span>错误输出
+                </div>
+                <div id="outputElapsed" class="output-elapsed">00:00:00</div>
+            </div>
+        </main>
+    </div>
+
+    <div id="changePwdModal" class="modal" style="display:none">
+        <div class="modal-content" style="max-width:400px">
+            <span class="modal-close" onclick="closeModal('changePwdModal')">&times;</span>
+            <h2>修改密码</h2>
+            <form onsubmit="return handleChangePwd(event)">
+                <div class="form-group">
+                    <label for="oldPassword">当前密码</label>
+                    <input type="password" id="oldPassword" required>
+                </div>
+                <div class="form-group">
+                    <label for="newPassword">新密码</label>
+                    <input type="password" id="newPassword" required>
+                </div>
+                <div class="form-group">
+                    <label for="confirmPassword">确认新密码</label>
+                    <input type="password" id="confirmPassword" required>
+                </div>
+                <div id="changePwdError" class="form-error" style="display:none"></div>
+                <button type="submit" class="btn btn-primary btn-full">确认修改</button>
+            </form>
+        </div>
+    </div>
+
+    
+    <!-- 错误输出区域 -->
+    <div id="errorOutputSection" class="error-output-section" style="display:none">
+        <div class="error-output-header">&#10060; 扫描失败 - 错误信息</div>
+        <div id="errorOutputContent" class="error-output-content"></div>
+    </div>
+
+    <!-- 二次确认弹窗 -->
+    <div id="confirmModal" class="modal confirm-modal" style="display:none">
+        <div class="modal-content">
+            <div class="confirm-icon" id="confirmIcon">&#9888;</div>
+            <div class="confirm-title" id="confirmTitle">确认操作</div>
+            <div class="confirm-message" id="confirmMessage">确定要执行此操作吗？</div>
+            <div class="confirm-actions">
+                <button class="btn" onclick="closeConfirmModal()">取消</button>
+                <button class="btn btn-danger" id="confirmActionBtn" onclick="executeConfirmedAction()">确认</button>
+            </div>
+        </div>
+    </div>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>星云罗盘 - 文档说明</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="app-layout">
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <h2>星云罗盘 - 资产测绘平台</h2>
+            </div>
+            <ul class="sidebar-nav">
+                <li><a href="/tasks">扫描任务</a></li>
+                <li><a href="/docs" class="active">文档说明</a></li>
+                <li><a href="/dns">DNS查询</a></li>
+                <li><a href="/settings">系统设置</a></li>
+            </ul>
+            <div class="sidebar-footer">
+                <button class="btn btn-sm" onclick="showChangePwd()">修改密码</button>
+                <button class="btn btn-sm btn-danger" onclick="handleLogout()">退出登录</button>
+            </div>
+        </nav>
+        <main class="main-content">
+            <header class="page-header">
+                <h1>文档说明</h1>
+            </header>
+
+            <div class="card docs-content">
+                <h2>平台简介</h2>
+                <p>星云罗盘 - 资产测绘平台（NebulaCompass）是一款用于内外网资产探测和端口扫描的工具。它集成了 <code>nmap</code> 和 <code>masscan</code> 两款经典网络扫描工具，提供完整的存活探测、端口扫描和服务识别能力。</p>
+                <p>平台支持多种扫描模式，包括：全套扫描、存活探测、端口扫描、服务识别以及 Nmap 端口扫描，覆盖从资产发现到服务识别全流程。</p>
+
+                <h2>配套工具说明</h2>
+                <p>本平台依赖 <strong>nmap</strong> 和 <strong>masscan</strong> 两个外部工具来完成扫描任务。以下是如何获取和安装这两个工具的详细说明。</p>
+
+                <h3>Nmap</h3>
+                <p>Nmap（Network Mapper）是一个开源的网络探测和安全审计工具。本平台使用它进行主机存活探测（Ping扫描）和服务版本识别。</p>
+
+                <div class="download-section">
+                    <h4>下载地址</h4>
+                    <a class="download-link" href="https://nmap.org/download.html" target="_blank" rel="noopener">&#11088; 官网下载</a>
+                    <a class="download-link" href="https://nmap.org/dist/?C=M;O=D" target="_blank" rel="noopener">&#128230; 所有版本</a>
+                    <p style="margin-top:8px;font-size:13px;color:var(--text-muted)">官网提供 Windows、macOS、Linux 各平台的安装包和源码。</p>
+                </div>
+
+                <h4>安装方式</h4>
+                <p><strong>Windows:</strong></p>
+                <ul>
+                    <li>从官网下载 <code>nmap-7.95-setup.exe</code> 安装包，双击安装即可</li>
+                    <li>安装完成后默认路径为 <code>C:\Program Files (x86)\Nmap\nmap.exe</code></li>
+                    <li>安装程序会自动将 nmap 添加到系统 PATH</li>
+                </ul>
+                <p><strong>macOS:</strong></p>
+                <pre># 使用 Homebrew 安装（推荐）
+brew install nmap
+
+# 或从官网下载 .dmg 安装包手动安装</pre>
+                <p><strong>Linux (Debian/Ubuntu):</strong></p>
+                <pre>sudo apt update
+sudo apt install nmap -y</pre>
+                <p><strong>Linux (CentOS/RHEL):</strong></p>
+                <pre>sudo yum install nmap -y</pre>
+                <p><strong>从源码编译:</strong></p>
+                <pre># 下载源码
+wget https://nmap.org/dist/nmap-7.95.tar.bz2
+tar jxvf nmap-7.95.tar.bz2
+cd nmap-7.95
+
+# 编译安装
+./configure
+make -j$(nproc)
+sudo make install</pre>
+                <p>编译依赖：需要安装 <code>gcc</code>、<code>make</code>、<code>openssl-dev</code> 等开发工具包。</p>
+
+                <h3>Masscan</h3>
+                <p>Masscan 是一款高速端口扫描器，号称"最快的互联网端口扫描器"。本平台使用它进行大规模端口扫描，利用其高速扫描能力快速发现开放端口。</p>
+
+                <div class="download-section">
+                    <h4>下载地址</h4>
+                    <a class="download-link" href="https://github.com/robertdavidgraham/masscan" target="_blank" rel="noopener">&#11088; GitHub 项目</a>
+                    <a class="download-link" href="https://github.com/robertdavidgraham/masscan/releases" target="_blank" rel="noopener">&#128230; Release 页面</a>
+                </div>
+
+                <h4>安装方式</h4>
+                <p><strong>macOS:</strong></p>
+                <pre># 使用 Homebrew 安装（推荐）
+brew install masscan</pre>
+                <p><strong>Linux (Debian/Ubuntu):</strong></p>
+                <pre>sudo apt update
+sudo apt install masscan -y</pre>
+                <p><strong>从源码编译（推荐，获取最新版本）：</strong></p>
+                <pre># 克隆源码
+git clone https://github.com/robertdavidgraham/masscan.git
+cd masscan
+
+# 编译（使用 make 即可，无需 configure）
+make -j$(nproc)
+
+# 安装到系统（可选）
+sudo make install
+
+# 如果不安装到系统，可以直接使用当前目录下的 ./bin/masscan
+./bin/masscan --help</pre>
+                <p>Masscan 的编译非常简单，只需要 <code>gcc</code> 和 <code>make</code> 即可，没有额外的依赖库。编译完成后，可执行文件在 <code>bin/masscan</code>。</p>
+                <p><strong>Windows:</strong></p>
+                <ul>
+                    <li>Masscan 主要面向 Linux/macOS，Windows 上可以：</li>
+                    <li>使用 <a href="https://learn.microsoft.com/zh-cn/windows/wsl/install" target="_blank" rel="noopener">WSL（Windows Subsystem for Linux）</a> 在 Linux 子系统中编译使用</li>
+                   <li>或在 Cygwin/MSYS2 环境中编译</li>
+               </ul>
+                <p><strong>使用 w64devkit 编译（推荐 Windows 用户）：</strong></p>
+                <p>如果没有安装编译环境，可以使用 <a href="https://github.com/skeeto/w64devkit" target="_blank" rel="noopener">w64devkit</a> 工具进行编译。w64devkit 是一个面向 Windows 的便携式 C/C++ 开发工具包，内含 <code>gcc</code>、<code>make</code> 等编译工具，无需额外安装 Visual Studio 或 MinGW。</p>
+                <pre># 1. 下载 w64devkit
+# 访问 https://github.com/skeeto/w64devkit/releases
+# 下载 w64devkit-x.x.x-x.x.x.zip 并解压到任意目录
+
+# 2. 进入解压后的目录，运行 w64devkit.exe 打开命令行环境
+# 该环境已自动配置好 gcc、make 等编译工具
+w64devkit.exe
+
+# 3. 在命令行中编译 masscan
+git clone https://github.com/robertdavidgraham/masscan.git
+cd masscan
+make -j4
+
+# 4. 编译完成后，可执行文件在 bin/masscan.exe
+ls -la bin/masscan.exe</pre>
+                <p>编译完成后，将 <code>bin/masscan.exe</code> 的路径填写到平台的"系统设置"页面的"Masscan 路径"中即可。</p>
+
+                <h2>工具验证</h2>
+                <p>安装完成后，建议在系统终端中验证工具是否可以正常使用：</p>
+                <pre># 验证 nmap
+nmap --version
+
+# 验证 masscan
+masscan --version</pre>
+                <p>如果以上命令可以正常输出版本信息，说明工具已正确安装并添加到系统 PATH 中。然后在平台的"系统设置"页面中，分别填入工具路径即可（如果已配置系统 PATH，填入工具名即可，如 <code>nmap</code> 或 <code>masscan</code>）。</p>
+                <p>设置页面中，填入路径后点击"验证"按钮，平台会自动检查路径是否正确。</p>
+
+                <h2>扫描模式说明</h2>
+                <ul>
+                    <li><strong>全套扫描</strong> - 进行完整的扫描流程：Ping存活探测 &rarr; Masscan端口扫描 &rarr; Nmap服务版本识别。最全面的扫描模式。</li>
+                    <li><strong>存活探测</strong> - 仅通过 Ping 扫描（nmap -sn）探测目标网段中在线的主机，不进行端口扫描。</li>
+                    <li><strong>端口扫描</strong> - 先进行存活探测，然后对存活主机进行 Masscan 端口扫描，不进行服务识别。</li>
+                    <li><strong>服务识别</strong> - 跳过存活探测和端口扫描，直接对指定的 IP:端口 进行 Nmap 服务版本识别（nmap -sV）。</li>
+                    <li><strong>Nmap端口扫描</strong> - 使用 Nmap 代替 Masscan 进行端口扫描，适合精确度要求更高的场景。</li>
+                </ul>
+
+                <h2>注意事项</h2>
+                <ul>
+                    <li>扫描内网时，请确保有合法授权。未经授权的扫描可能违反相关法律法规。</li>
+                    <li>Masscan 的高速扫描可能被网络设备检测并拦截，必要时降低扫描速率（--rate）。</li>
+                    <li>扫描结果会保存在 <code>./Data_folder/</code> 目录下的 SQLite 数据库中。</li>
+                    <li>默认监听端口为 8080，可通过 <code>-p</code> 参数，在平台启动时修改。</li>
+<!--                    <li>数据目录可通过 <code>PORTSCAN_DATA_DIR</code> 环境变量指定。</li>-->
+                    <li>默认管理员账号：<code>admin</code>，密码：<code>admin123</code>，登录后请立即修改密码。</li>
+                </ul>
+            </div>
+        </main>
+    </div>
+
+    <div id="changePwdModal" class="modal" style="display:none">
+        <div class="modal-content" style="max-width:400px">
+            <span class="modal-close" onclick="closeModal('changePwdModal')">&times;</span>
+            <h2>修改密码</h2>
+            <form onsubmit="return handleChangePwd(event)">
+                <div class="form-group">
+                    <label for="oldPassword">当前密码</label>
+                    <input type="password" id="oldPassword" required>
+                </div>
+                <div class="form-group">
+                    <label for="newPassword">新密码</label>
+                    <input type="password" id="newPassword" required>
+                </div>
+                <div class="form-group">
+                    <label for="confirmPassword">确认新密码</label>
+                    <input type="password" id="confirmPassword" required>
+                </div>
+                <div id="changePwdError" class="form-error" style="display:none"></div>
+                <button type="submit" class="btn btn-primary btn-full">确认修改</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
