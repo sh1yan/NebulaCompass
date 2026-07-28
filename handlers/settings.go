@@ -35,9 +35,10 @@ func getSettingDefs() []settingDef {
 		{Key: models.SettingNmapPingArgs, Label: "Nmap Ping 扫描参数", Description: "nmap -sn 存活扫描的额外参数", Type: "text"},
 		{Key: models.SettingMasscanArgs, Label: "Masscan 扫描参数", Description: "masscan 端口扫描的额外参数（排除 -p 和端口范围）", Type: "text"},
 		{Key: models.SettingNmapServiceArgs, Label: "Nmap 服务扫描参数", Description: "nmap -sV 服务版本识别的参数", Type: "text"},
-		{Key: models.SettingPingRate, Label: "Ping 速率", Description: "nmap ping 扫描的发送速率（packets/sec）", Type: "number"},
-		{Key: models.SettingPortRate, Label: "端口扫描速率", Description: "masscan 端口扫描的速率（packets/sec）", Type: "number"},
-		{Key: models.SettingMaxConcurrency, Label: "最大并发任务数", Description: "同时运行的最大扫描任务数", Type: "number"},
+		{Key: models.SettingNmapPortArgs, Label: "Nmap 端口扫描参数", Description: "nmap 端口扫描识别的参数", Type: "text"},
+		// {Key: models.SettingPingRate, Label: "Ping 速率", Description: "nmap ping 扫描的发送速率（packets/sec）", Type: "number"},
+		// {Key: models.SettingPortRate, Label: "端口扫描速率", Description: "masscan 端口扫描的速率（packets/sec）", Type: "number"},
+		// {Key: models.SettingMaxConcurrency, Label: "最大并发任务数", Description: "同时运行的最大扫描任务数", Type: "number"},
 		{Key: models.SettingRefreshInterval, Label: "首页自动刷新间隔", Description: "任务列表页自动刷新时间（秒），设为0表示不自动刷新", Type: "number"},
 	}
 
@@ -102,7 +103,7 @@ func (h *SettingsHandler) VerifyPath(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]interface{}{"valid": false, "message": "✗ 指定的路径不是一个可执行文件"})
 	}
 }
- 
+
 func (h *SettingsHandler) PageSettings(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, "templates/settings.html")
 }

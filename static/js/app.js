@@ -652,7 +652,7 @@ function renderCmdRecords(rawText) {
     var sourceHint = '';
     if (line.indexOf('-sn') > -1 || line.indexOf('-sV') > -1) {
       sourceHint = (line.indexOf('-sn') > -1) ? '存活探测' : '服务识别';
-    } else if (line.indexOf('--rate') > -1) {
+    } else if (line.indexOf('nmap') > -1) {
       sourceHint = '端口扫描';
     }
     if (line.indexOf('masscan') > -1) sourceHint = '端口扫描';

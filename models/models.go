@@ -90,9 +90,10 @@ const (
 	SettingNmapPingArgs    = "nmap_ping_args"
 	SettingMasscanArgs     = "masscan_args"
 	SettingNmapServiceArgs = "nmap_service_args"
-	SettingPingRate        = "ping_rate"
-	SettingPortRate        = "port_rate"
-	SettingMaxConcurrency  = "max_concurrency"
+	SettingNmapPortArgs    = "nmap_port_args" // 用于增加单独的nmap扫描的参数
+	//SettingPingRate        = "ping_rate"
+	//SettingPortRate        = "port_rate"
+	//SettingMaxConcurrency  = "max_concurrency"
 	SettingRefreshInterval = "refresh_interval"
 )
 
@@ -103,9 +104,10 @@ func GetDefaultSettings() []Setting {
 		{Key: SettingNmapPingArgs, Value: "-sn -n --min-rate=2000 --max-rtt-timeout=1000ms --host-timeout=3s"},
 		{Key: SettingMasscanArgs, Value: "--rate=2000"},
 		{Key: SettingNmapServiceArgs, Value: "-sV --min-rate=2000 --max-rtt-timeout=2000ms -Pn -n"},
-		{Key: SettingPingRate, Value: "500"},
-		{Key: SettingPortRate, Value: "1000"},
-		{Key: SettingMaxConcurrency, Value: "3"},
+		{Key: SettingNmapPortArgs, Value: "-sS --min-rate=2000 --max-rtt-timeout=2000ms -Pn -n"},
+		//{Key: SettingPingRate, Value: "500"},
+		//{Key: SettingPortRate, Value: "1000"},
+		//{Key: SettingMaxConcurrency, Value: "3"},
 		{Key: SettingRefreshInterval, Value: "0"},
 	}
 }

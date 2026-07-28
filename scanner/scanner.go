@@ -195,12 +195,13 @@ func (sm *ScanManager) runScan(taskID int64, cancel chan struct{}) {
 	nmapPingArgs := db.GetSetting(models.SettingNmapPingArgs)
 	masscanArgs := db.GetSetting(models.SettingMasscanArgs)
 	nmapServiceArgs := db.GetSetting(models.SettingNmapServiceArgs)
+	nmapNmapPortArgs := db.GetSetting(models.SettingNmapPortArgs)
 	portRange := task.PortRange
 	if portRange == "" {
 		portRange = "1-65535"
 	}
 
-	// Handle nmap-only port scan mode
+	// Handle nmap-only port scan mode 仅执行 nmap 端口扫描，非 masscan 的扫描
 	if scanMode == models.ScanModeNmapPort {
 		select {
 		case <-cancel:
@@ -209,8 +210,8 @@ func (sm *ScanManager) runScan(taskID int64, cancel chan struct{}) {
 		}
 		publishEvent(db, taskID, models.PhaseNmapScan, 0, "Starting nmap port scan...", "")
 
-		// For nmap scan, use -Pn to skip ping
-		nmapScanArgs := parseNmapPortArgs(nmapServiceArgs)
+		// 加载 nmap 端口扫描的参数
+		nmapScanArgs := parseNmapPortArgs(nmapNmapPortArgs)
 		nmapResult, err := RunNmapPortScan(task.Target, portRange, nmapPath, nmapScanArgs, taskID)
 		if err != nil {
 			failTask(db, taskID, cancel, err)
@@ -526,11 +527,19 @@ func parseServiceTargets(target string) map[string][]int {
 // parseNmapPortArgs 为 nmap 端口扫描构建参数
 func parseNmapPortArgs(serviceArgs string) string {
 	// 移除 -sV 参数，替换为 -sS 或 -sT
-	args := strings.ReplaceAll(serviceArgs, "-sV", "-sS")
+	// args := strings.ReplaceAll(serviceArgs, "-sV", "-sS")
+	args := serviceArgs
 	// 如果没指定扫描类型，使用 -sS
 	if !strings.Contains(args, "-sS") && !strings.Contains(args, "-sT") {
-		args = "-sS -Pn -n " + args
+		args = "-sS" + args
 	}
+	if !strings.Contains(args, "-Pn") {
+		args = "-Pn" + args
+	}
+	if !strings.Contains(args, "-n") {
+		args = "-n" + args
+	}
+
 	return args
 }
 
