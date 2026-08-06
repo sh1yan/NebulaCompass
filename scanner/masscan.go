@@ -86,19 +86,43 @@ func RunMasscanWithFile(aliveHosts []string, portRange string, masscanPath strin
 }
 
 func parseMasscanOutput(output string) *MasscanResult {
+	/***
+	该函数用于取值masscan扫描的开放端口条数，并按照ip:port进行去重来获取
+	*/
 	result := &MasscanResult{
 		OpenPorts: make(map[string][]int),
 	}
 	scanner := bufio.NewScanner(strings.NewReader(output))
-	re := regexp.MustCompile(`^(open|filtered)\s+(tcp|udp)\s+(\d+)\s+([\d.]+)`)
+
+	//re := regexp.MustCompile(`^(open|filtered)\s+(tcp|udp)\s+(\d+)\s+([\d.]+)`)
+	//for scanner.Scan() {
+	//	line := strings.TrimSpace(scanner.Text())
+	//	matches := re.FindStringSubmatch(line)
+	//	if matches != nil {
+	//		ip := matches[4]
+	//		port, _ := strconv.Atoi(matches[3])
+	//		result.OpenPorts[ip] = append(result.OpenPorts[ip], port)
+	//	}
+	//}
+
+	re := regexp.MustCompile(`^open\s+(tcp|udp)\s+(\d+)\s+([\d.]+)`)
+	seen := make(map[string]bool)
+
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		matches := re.FindStringSubmatch(line)
-		if matches != nil {
-			ip := matches[4]
-			port, _ := strconv.Atoi(matches[3])
-			result.OpenPorts[ip] = append(result.OpenPorts[ip], port)
+		if matches == nil {
+			continue
 		}
+		ip := matches[4]
+		key := ip + "/" + matches[3]
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		port, _ := strconv.Atoi(matches[3])
+		result.OpenPorts[ip] = append(result.OpenPorts[ip], port)
 	}
+
 	return result
 }

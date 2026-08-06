@@ -225,12 +225,25 @@ func (sm *ScanManager) runScan(taskID int64, cancel chan struct{}) {
 		task.PortScanOutput = nmapResult.RawXML
 
 		if len(nmapResult.Results) > 0 {
+
 			for _, r := range nmapResult.Results {
 				r.TaskID = taskID
 			}
 			db.AddResults(nmapResult.Results)
 		}
 
+		// task.TotalPorts = len(nmapResult.Results)
+		// db.UpdateTask(task)
+
+		hostSummary := db.GetHostPortSummary(taskID) // 用于解决nmap扫描结果中，无法获取到存活主机IP数量 2026.8.6
+		aliveIPs := make([]string, 0, len(hostSummary))
+		for _, h := range hostSummary {
+			aliveIPs = append(aliveIPs, h.IP)
+		}
+
+		task.AliveHosts = aliveIPs
+		task.TotalHosts = len(aliveIPs)
+		task.ScannedHosts = len(aliveIPs)
 		task.TotalPorts = len(nmapResult.Results)
 		db.UpdateTask(task)
 
