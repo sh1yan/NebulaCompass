@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strconv"
+	"strings"
 )
 
 type SettingsHandler struct{}
@@ -61,16 +63,72 @@ func (h *SettingsHandler) SaveSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var settings map[string]string
-	if err := json.NewDecoder(r.Body).Decode(&settings); err != nil {
+	var incoming map[string]string
+	if err := json.NewDecoder(r.Body).Decode(&incoming); err != nil {
 		json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "message": "Invalid request"})
 		return
 	}
 
-	db := database.GetDB()
-	db.UpdateSettings(settings)
+	// 只接受已知配置项，且做基本校验（历史缺陷 D-21：任意 key 都能写库）
+	allowed := map[string]bool{
+		models.SettingNmapPath:        true,
+		models.SettingMasscanPath:     true,
+		models.SettingNmapPingArgs:    true,
+		models.SettingMasscanArgs:     true,
+		models.SettingNmapServiceArgs: true,
+		models.SettingNmapPortArgs:    true,
+		models.SettingRefreshInterval: true,
+	}
 
-	json.NewEncoder(w).Encode(map[string]interface{}{"success": true})
+	settings := make(map[string]string, len(incoming))
+	ignored := make([]string, 0)
+	for k, v := range incoming {
+		if !allowed[k] {
+			ignored = append(ignored, k)
+			continue
+		}
+		v = strings.TrimSpace(v)
+		if strings.ContainsAny(v, "\r\n\x00") {
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"success": false,
+				"message": "配置项 " + k + " 含有非法字符（不允许换行）",
+			})
+			return
+		}
+		switch k {
+		case models.SettingRefreshInterval:
+			if v == "" {
+				v = "0"
+			}
+			n, err := strconv.Atoi(v)
+			if err != nil || n < 0 || n > 86400 {
+				json.NewEncoder(w).Encode(map[string]interface{}{
+					"success": false,
+					"message": "首页自动刷新间隔必须为 0-86400 之间的整数（0 表示不刷新）",
+				})
+				return
+			}
+			v = strconv.Itoa(n)
+		case models.SettingNmapPath, models.SettingMasscanPath:
+			if strings.ContainsAny(v, "\t") {
+				v = strings.ReplaceAll(v, "\t", " ")
+			}
+		}
+		settings[k] = v
+	}
+
+	db := database.GetDB()
+	if err := db.UpdateSettings(settings); err != nil {
+		json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "message": "保存失败: " + err.Error()})
+		return
+	}
+
+	resp := map[string]interface{}{"success": true, "saved": len(settings)}
+	if len(ignored) > 0 {
+		resp["ignored"] = ignored
+		resp["message"] = "已忽略未知配置项：" + strings.Join(ignored, "、")
+	}
+	json.NewEncoder(w).Encode(resp)
 }
 
 func (h *SettingsHandler) VerifyPath(w http.ResponseWriter, r *http.Request) {
@@ -105,5 +163,5 @@ func (h *SettingsHandler) VerifyPath(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *SettingsHandler) PageSettings(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, "templates/settings.html")
+	ServePage(w, r, "settings.html")
 }

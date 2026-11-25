@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>星云罗盘 - 实时输出</title>
+    <link rel="icon" href="data:,">
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
@@ -27,15 +28,18 @@
             <header class="page-header">
                 <h1><a href="/tasks" style="text-decoration:none;color:inherit">&larr;</a> <span id="outputTaskName">实时输出</span></h1>
                 <div class="page-header-actions">
-                    <span id="outputStatusBadge" class="status-badge status-pending">等待中</span>
-                    <button id="clearOutputBtn" class="btn btn-sm" onclick="clearOutput()">&#128465; 清屏</button>
-                    <button id="scrollLockBtn" class="btn btn-sm" onclick="toggleScroll()">&#128204; 锁定滚动</button>
+                    <span id="outputStatusBadge" class="badge badge-pending">等待</span>
+                    <button id="exportXlsxBtn" class="btn btn-action btn-soft btn-soft-cyan" onclick="exportTaskXlsx(outputTaskId)">&#128202; 导出 XLSX</button>
+                    <button id="exportArchiveBtn" class="btn btn-action btn-soft btn-soft-cyan" onclick="exportTaskArchive(outputTaskId)">&#128230; 导出存档 ZIP</button>
+                    <button id="clearOutputBtn" class="btn btn-action btn-soft btn-soft-neutral" onclick="clearOutput()">&#128465; 清屏</button>
+                    <button id="scrollLockBtn" class="btn btn-action btn-soft btn-soft-violet" onclick="toggleScroll()">&#128204; 锁定滚动</button>
                 </div>
             </header>
 
             <div id="outputProgress" class="output-progress-bar">
                 <div id="outputProgressFill" class="output-progress-fill" style="width:0%"></div>
             </div>
+            <div id="outputEta" class="output-eta" style="display:none"></div>
 
             <div id="outputContainer" class="output-container">
                 <div id="outputLines" class="output-lines">
@@ -66,7 +70,7 @@
                 </div>
                 <div class="form-group">
                     <label for="newPassword">新密码</label>
-                    <input type="password" id="newPassword" required>
+                    <input type="password" id="newPassword" minlength="8" placeholder="至少 8 位" required>
                 </div>
                 <div class="form-group">
                     <label for="confirmPassword">确认新密码</label>

@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>星云罗盘 - 任务管理</title>
+    <link rel="icon" href="data:,">
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
@@ -27,20 +28,50 @@
             <header class="page-header">
                 <h1>扫描任务</h1>
                 <div class="page-header-actions">
-                    <button class="btn btn-sm btn-outline" onclick="refreshTasks()">&#x21bb; 刷新</button>
-                    <button class="btn btn-primary" onclick="showCreateTask()">+ 新建任务</button>
+                    <button class="btn btn-soft btn-soft-neutral" onclick="refreshTasks()">&#x21bb; 刷新</button>
+                    <button class="btn btn-solid btn-solid-primary" onclick="showCreateTask()">+ 新建任务</button>
                 </div>
             </header>
 
+            <div class="task-toolbar">
+                <div class="search-field" id="taskSearchField">
+                    <svg class="search-icon" viewBox="0 0 24 24" width="15" height="15" fill="none"
+                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="11" cy="11" r="7"></circle>
+                        <line x1="16.5" y1="16.5" x2="21" y2="21"></line>
+                    </svg>
+                    <input type="text" id="taskSearchInput" autocomplete="off" spellcheck="false"
+                           placeholder="搜索任务名称 / 扫描目标 / 状态"
+                           oninput="taskSearchChanged()" onkeydown="handleTaskSearchKey(event)">
+                    <button type="button" class="search-clear" id="taskSearchClear" title="清空搜索" onclick="clearTaskSearch()">
+                        <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor"
+                             stroke-width="2.6" stroke-linecap="round" aria-hidden="true">
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
+                <span class="search-count" id="taskSearchCount"></span>
+            </div>
+
             <div id="taskList" class="task-list">
                 <div class="loading">加载中...</div>
+            </div>
+
+            <div id="taskPager" class="task-pager" style="display:none">
+                <span id="taskPagerInfo" class="task-pager-info"></span>
+                <span style="display:flex;align-items:center;gap:8px">
+                    <button id="taskPrevBtn" class="btn btn-sm pagination-btn" onclick="taskPrevPage()" disabled>上一页</button>
+                    <span id="taskPageIndicator" class="pagination-indicator">第 1/1 页</span>
+                    <button id="taskNextBtn" class="btn btn-sm pagination-btn" onclick="taskNextPage()" disabled>下一页</button>
+                </span>
             </div>
         </main>
     </div>
 
     <!-- 新建任务弹窗 -->
     <div id="createTaskModal" class="modal" style="display:none">
-        <div class="modal-content" style="max-width:520px">
+        <div class="modal-content" style="max-width:600px">
             <span class="modal-close" onclick="closeModal('createTaskModal')">&times;</span>
             <h2>新建扫描任务</h2>
             <form id="createTaskForm" onsubmit="return handleCreateTask(event)">
@@ -73,8 +104,9 @@
                 </div>
                 <div class="form-group">
                     <label for="taskTarget">扫描目标</label>
-                    <textarea id="taskTarget" rows="3" placeholder="每行一个：&#10;192.168.1.0/24&#10;10.0.0.1&#10;172.16.0.0/16" required></textarea>
+                    <textarea id="taskTarget" rows="3" placeholder="每行一个：&#10;192.168.1.0/24&#10;10.0.0.1&#10;172.16.0.0/16" required oninput="onTaskTargetInput()"></textarea>
                     <small class="form-hint" id="targetHint">支持多个目标，每行一个。支持 CIDR、IP 范围、单个 IP</small>
+                    <div id="serviceTargetWarn" class="target-warn" style="display:none"></div>
                 </div>
                 <div class="csv-upload-area">
                     <label class="csv-upload-btn" onclick="document.getElementById('csvFileInput').click()">
@@ -83,10 +115,31 @@
                     <input type="file" id="csvFileInput" accept=".csv,.txt" onchange="handleCSVImport(event)">
                     <span id="csvFileInfo" class="csv-file-info"></span>
                 </div>
-                <div class="form-group" id="portRangeGroup">
-                    <label for="taskPortRange">端口范围</label>
-                    <input type="text" id="taskPortRange" placeholder="例如: 1-65535 (默认)" value="1-65535">
+
+                <div class="form-group" id="portPresetGroup">
+                    <div class="port-preset-head">
+                        <label class="port-preset-title">预置端口列表<span class="port-preset-sub">可多选</span></label>
+                        <div class="port-preset-tools">
+                            <span class="port-preset-selected" id="portPresetSelectedInfo">已选 0 项</span>
+                            <button type="button" class="btn-mini" onclick="selectAllPortPresets(true)">全选</button>
+                            <button type="button" class="btn-mini" onclick="selectAllPortPresets(false)">清空</button>
+                        </div>
+                    </div>
+                    <div id="portPresetList" class="port-preset-list">
+                        <span class="form-hint">加载中...</span>
+                    </div>
+                    <small class="form-hint">勾选后自动与下方自定义端口合并去重</small>
                 </div>
+
+                <div class="form-group" id="portRangeGroup">
+                    <label for="taskPortRange">自定义端口范围</label>
+                    <input type="text" id="taskPortRange" placeholder="例如: 1-65535 / 80,443,8000-8100 / U:53,161"
+                           value="1-65535" oninput="updatePortSpecPreview()">
+                    <small class="form-hint">TCP 直接写端口或区间；UDP 加 <code>U:</code> 前缀（如 <code>U:53,161</code>）</small>
+                </div>
+
+                <div class="port-spec-preview" id="portSpecPreview">最终端口规约：1-65535（约 65535 个端口）</div>
+
                 <button type="submit" class="btn btn-primary btn-full">创建并开始扫描</button>
             </form>
         </div>
@@ -104,7 +157,7 @@
                 </div>
                 <div class="form-group">
                     <label for="newPassword">新密码</label>
-                    <input type="password" id="newPassword" required>
+                    <input type="password" id="newPassword" minlength="8" placeholder="至少 8 位" required>
                 </div>
                 <div class="form-group">
                     <label for="confirmPassword">确认新密码</label>

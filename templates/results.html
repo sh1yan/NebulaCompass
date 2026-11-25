@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>星云罗盘 - 扫描结果</title>
+    <link rel="icon" href="data:,">
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
@@ -28,14 +29,19 @@
                 <h1><a href="/tasks" style="text-decoration:none;color:inherit">&larr;</a> <span id="resultTaskName">扫描结果</span></h1>
                 <div style="display:flex;align-items:center;gap:10px">
                     <span id="resultScanMode" class="badge badge-completed" style="font-size:12px;padding:4px 12px">扫描模式</span>
-                    <button id="exportBtn" class="btn btn-success" onclick="exportResults()">导出 XLSX</button>
+                    <button id="exportBtn" class="btn btn-action btn-soft btn-soft-cyan" onclick="exportResults()">导出 XLSX</button>
+                    <button class="btn btn-action btn-soft btn-soft-cyan" onclick="exportResultsCsv()">导出 CSV</button>
+                    <button class="btn btn-action btn-soft btn-soft-cyan" onclick="exportResultsJson()">导出 JSON</button>
+                    <button class="btn btn-action btn-soft btn-soft-cyan" onclick="exportTaskArchive(resultsTaskId)">导出过程存档 ZIP</button>
                 </div>
             </header>
+
+            <div id="partialBanner" class="partial-banner" style="display:none"></div>
 
             <div class="stats-row" id="statsRow">
                 <div class="stat-card"><div class="stat-value" id="statTotal">0</div><div class="stat-label">端口总数</div></div>
                 <div class="stat-card stat-open"><div class="stat-value" id="statOpen">0</div><div class="stat-label">开放</div></div>
-                <div class="stat-card stat-filtered"><div class="stat-value" id="statFiltered">0</div><div class="stat-label">过滤</div></div>
+                <div class="stat-card stat-filtered"><div class="stat-value" id="statFiltered">0</div><div class="stat-label">开放|过滤</div></div>
                 <div class="stat-card stat-services"><div class="stat-value" id="statServices">0</div><div class="stat-label">服务识别</div></div>
                 <div class="stat-card" style="border-left:3px solid var(--accent)"><div class="stat-value" id="statHostsWithPorts" style="color:var(--accent)">0</div><div class="stat-label">有开放端口 IP</div></div>
                 <div class="stat-card" style="border-left:3px solid #06b6d4"><div class="stat-value" id="statAliveHosts" style="color:#06b6d4">0</div><div class="stat-label">存活主机</div></div>
@@ -93,6 +99,10 @@
                     <h3 style="font-size:15px;margin-bottom:12px">主机端口概览</h3>
                     <div id="hostSummary" class="host-summary-list"></div>
                 </div>
+                <div class="card">
+                    <h3 style="font-size:15px;margin-bottom:12px">操作系统指纹</h3>
+                    <div id="osChart" class="chart-container" style="min-height:40px"></div>
+                </div>
             </div>
         </main>
     </div>
@@ -108,7 +118,7 @@
                 </div>
                 <div class="form-group">
                     <label for="newPassword">新密码</label>
-                    <input type="password" id="newPassword" required>
+                    <input type="password" id="newPassword" minlength="8" placeholder="至少 8 位" required>
                 </div>
                 <div class="form-group">
                     <label for="confirmPassword">确认新密码</label>

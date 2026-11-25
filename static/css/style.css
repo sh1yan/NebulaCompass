@@ -241,6 +241,7 @@ tr:hover { background: #f8fafc; }
 .toast-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
 .toast-error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
 .toast-running { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
+.toast-warning { background: #fef9c3; color: #854d0e; border: 1px solid #fde68a; }
 @keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(-12px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
 .progress-bar {
   height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden; margin: 12px 0;
@@ -831,3 +832,410 @@ tr:hover { background: #f8fafc; }
 }
 .detail-item.detail-hidden { display: none; }
 #resultTableCard.card-hidden { display: none !important; }
+
+/* ===== 预置端口列表 / 端口规约预览 ===== */
+.port-preset-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.port-preset-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  background: var(--bg-card);
+  transition: var(--transition);
+  font-size: 12px;
+}
+.port-preset-item:hover { border-color: var(--primary); background: #f8faff; }
+.port-preset-item input[type="checkbox"] { accent-color: var(--primary); cursor: pointer; }
+.port-preset-name { font-weight: 600; color: var(--text); }
+.port-preset-udp {
+  margin-left: 4px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #ede9fe;
+  color: #6d28d9;
+  font-size: 10px;
+  font-weight: 600;
+}
+.port-preset-count { color: var(--primary); font-size: 11px; }
+.port-preset-desc { flex-basis: 100%; color: var(--text-muted); font-size: 11px; line-height: 1.4; }
+.port-spec-preview {
+  margin: 4px 0 14px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  background: #f1f5f9;
+  border: 1px dashed var(--border);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-family: var(--font-mono);
+  word-break: break-all;
+}
+
+/* ===== 暂停状态 / 预估剩余时间 ===== */
+.badge-paused { background: #fef9c3; color: #854d0e; }
+.btn-warning { background: var(--warning); color: #fff; }
+.btn-warning:hover { background: #d97706; transform: translateY(-1px); }
+.progress-fill.progress-paused { background: linear-gradient(90deg, var(--warning), #fbbf24); }
+.output-progress-fill.progress-paused { background: linear-gradient(90deg, var(--warning), #fbbf24); }
+
+.eta-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.eta-chip {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
+  font-size: 12px;
+  font-family: var(--font-mono);
+}
+.eta-meta {
+  color: #b45309 !important;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-family: var(--font-mono);
+}
+.output-eta {
+  margin-top: 6px;
+  padding: 6px 12px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: var(--radius-sm);
+  color: #1e40af;
+  font-size: 12px;
+  font-family: var(--font-mono);
+}
+
+/* ===== 部分结果提示 ===== */
+.partial-banner {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.partial-paused { background: #fef9c3; border: 1px solid #fde68a; color: #854d0e; }
+.partial-cancelled { background: #f1f5f9; border: 1px solid var(--border); color: #475569; }
+.partial-failed { background: #fee2e2; border: 1px solid #fecaca; color: #991b1b; }
+.partial-running { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
+
+/* 任务名过长时截断，避免破坏列表布局 */
+.task-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-name a { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
+.badge-filtered { background: #fef3c7; color: #92400e; }
+
+/* 任务列表搜索与分页 */
+.task-toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
+.task-toolbar input[type="text"] { flex: 1; max-width: 320px; }
+.task-pager { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; gap: 12px; }
+.task-pager-info { font-size: 12px; color: var(--text-muted); }
+
+/* 端口规约预览：非法输入提示 */
+.port-spec-preview.port-spec-invalid { color: var(--danger, #dc2626); font-weight: 600; }
+
+/* ===== 统一操作按钮系统（任务详情 / 任务列表） =====
+   目标：所有操作按钮同高、同圆角、同字号、同内边距，只用色相区分语义，
+   不再出现“一个大一个小、一个描边一个实心”的混搭。 */
+.action-card { padding: 14px 16px; }
+.action-bar {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
+  gap: 10px;
+}
+.action-bar .btn-action,
+.task-actions .btn-xs {
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 8px;
+  font-weight: 500; letter-spacing: 0.01em; box-shadow: none;
+  transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+.action-bar .btn-action {
+  min-width: 118px; height: 34px; padding: 0 16px; font-size: 13px;
+}
+.task-actions { display: flex; flex-wrap: wrap; gap: 8px; flex-shrink: 0; justify-content: flex-end; }
+.task-actions .btn-xs {
+  min-width: 74px; height: 30px; padding: 0 12px; font-size: 12px; border-radius: 7px;
+}
+.action-bar .btn-action:hover:not(:disabled),
+.task-actions .btn-xs:hover:not(:disabled) { transform: translateY(-1px); }
+.action-bar .btn-action:active:not(:disabled),
+.task-actions .btn-xs:active:not(:disabled) { transform: translateY(0); }
+
+/* 实心按钮：主操作（开始 / 继续 / 重新扫描 / 暂停 / 取消） */
+.btn-solid { color: #fff; }
+.btn-solid-primary { background: linear-gradient(180deg, #3b82f6, #2563eb); border-color: #2563eb; }
+.btn-solid-primary:hover:not(:disabled) { background: linear-gradient(180deg, #2f74e8, #1d4ed8); box-shadow: 0 4px 10px rgba(37, 99, 235, 0.28); }
+.btn-solid-success { background: linear-gradient(180deg, #22c55e, #16a34a); border-color: #16a34a; }
+.btn-solid-success:hover:not(:disabled) { background: linear-gradient(180deg, #1fb955, #15803d); box-shadow: 0 4px 10px rgba(22, 163, 74, 0.28); }
+.btn-solid-warning { background: linear-gradient(180deg, #f59e0b, #d97706); border-color: #d97706; }
+.btn-solid-warning:hover:not(:disabled) { background: linear-gradient(180deg, #e8900a, #b45309); box-shadow: 0 4px 10px rgba(217, 119, 6, 0.28); }
+.btn-solid-danger { background: linear-gradient(180deg, #ef4444, #dc2626); border-color: #dc2626; }
+.btn-solid-danger:hover:not(:disabled) { background: linear-gradient(180deg, #e23b3b, #b91c1c); box-shadow: 0 4px 10px rgba(220, 38, 38, 0.26); }
+
+/* 柔和按钮：次要操作（查看 / 输出 / 导出 / 存档 / 删除） */
+.btn-soft { border-width: 1px; border-style: solid; }
+.btn-soft-primary { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+.btn-soft-primary:hover:not(:disabled) { background: #dbeafe; border-color: #93c5fd; }
+.btn-soft-success { background: #ecfdf3; color: #15803d; border-color: #bbf7d0; }
+.btn-soft-success:hover:not(:disabled) { background: #dcfce7; border-color: #86efac; }
+.btn-soft-cyan { background: #eff8ff; color: #0369a1; border-color: #bae6fd; }
+.btn-soft-cyan:hover:not(:disabled) { background: #e0f2fe; border-color: #7dd3fc; }
+.btn-soft-violet { background: #f5f3ff; color: #6d28d9; border-color: #ddd6fe; }
+.btn-soft-violet:hover:not(:disabled) { background: #ede9fe; border-color: #c4b5fd; }
+.btn-soft-danger { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+.btn-soft-danger:hover:not(:disabled) { background: #fee2e2; border-color: #fca5a5; }
+.btn-soft-neutral { background: #fff; color: #475569; border-color: #cbd5e1; }
+.btn-soft-neutral:hover:not(:disabled) { background: #f8fafc; border-color: #94a3b8; color: #0f172a; }
+.btn-solid:disabled, .btn-soft:disabled,
+.action-bar .btn-action:disabled, .task-actions .btn-xs:disabled {
+  opacity: 0.45; cursor: not-allowed; transform: none !important; box-shadow: none !important;
+}
+
+/* 页头按钮统一尺寸，避免「刷新 / 新建任务」跟内容区风格割裂 */
+.page-header-actions .btn { height: 34px; padding: 0 14px; font-size: 13px; border-radius: 8px; }
+
+/* 阶段胶囊：暂停 / 中止状态 */
+.phase-step.paused { background: var(--warning); color: #fff; box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3); }
+.phase-step.stopped { background: var(--danger); color: #fff; box-shadow: 0 2px 8px rgba(239, 68, 68, 0.28); }
+
+/* 进度未知（nmap 阶段 / 刚启动）：滚动条表示“仍在推进”，而不是假装 0% */
+.progress-fill.progress-indeterminate {
+  background-image: linear-gradient(90deg,
+      rgba(59, 130, 246, 0) 0%,
+      var(--primary) 30%,
+      var(--accent) 50%,
+      var(--primary) 70%,
+      rgba(59, 130, 246, 0) 100%);
+  background-size: 220% 100%;
+  animation: ncProgressSweep 1.5s linear infinite;
+  opacity: 0.9;
+}
+@keyframes ncProgressSweep {
+  from { background-position: 120% 0; }
+  to { background-position: -120% 0; }
+}
+
+/* 通用操作按钮基础尺寸（页头 / 弹窗里也保持同一套观感）
+   注意：这里不要声明 border，否则会覆盖后面按语义定义的描边颜色 */
+.btn-action {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 34px; padding: 0 16px; border-radius: 8px;
+  font-size: 13px; font-weight: 500; letter-spacing: 0.01em; box-shadow: none;
+}
+
+/* ==========================================================================
+   第二轮 UI 优化
+   1) 任务列表搜索框   2) 详情页返回/自动刷新指示   3) 进度卡片状态文案
+   4) 扫描目标 / 端口范围自动回缩   5) 新建任务弹窗的预置端口列表
+   ========================================================================== */
+
+/* ---------- 1. 任务列表搜索框 ---------- */
+.task-toolbar { display: flex; align-items: center; gap: 12px; margin: -4px 0 16px; flex-wrap: wrap; }
+.task-toolbar input[type="text"] { max-width: none; padding: 0; border: none; }
+.search-field {
+  position: relative; display: flex; align-items: center;
+  flex: 0 1 420px; min-width: 200px; max-width: 420px; height: 38px;
+  padding: 0 6px 0 0; background: #fff;
+  border: 1.5px solid var(--border); border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
+}
+.search-field:hover { border-color: #cbd5e1; }
+.search-field:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.14); }
+.search-field .search-icon {
+  position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+  color: #94a3b8; pointer-events: none; transition: color .18s ease;
+}
+.search-field:focus-within .search-icon { color: var(--primary); }
+.search-field input[type="text"] {
+  flex: 1 1 auto; min-width: 0; height: 100%; width: 100%;
+  padding: 0 28px; border: none; outline: none; background: transparent;
+  font-size: 13px; font-family: var(--font); color: var(--text);
+}
+.search-field input[type="text"]::placeholder { color: #a3aebd; }
+.search-field .search-clear {
+  display: none; align-items: center; justify-content: center;
+  width: 20px; height: 20px; flex: 0 0 auto;
+  border: none; border-radius: 50%; background: #e2e8f0; color: #475569;
+  cursor: pointer; transition: var(--transition);
+}
+.search-field.has-value .search-clear { display: inline-flex; }
+.search-field .search-clear:hover { background: #cbd5e1; color: #0f172a; }
+.search-count { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+.search-count b { color: var(--primary); font-weight: 600; }
+
+/* ---------- 2. 详情页返回按钮 / 自动刷新指示 ---------- */
+.page-header h1 { display: flex; align-items: center; gap: 2px; }
+.back-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; margin-right: 7px; padding: 0;
+  border: 1.5px solid var(--border); border-radius: 9px;
+  background: #fff; color: var(--text-secondary); cursor: pointer;
+  transition: border-color .18s ease, background .18s ease, color .18s ease, transform .18s ease;
+}
+.back-btn:hover { background: #f1f5f9; border-color: #cbd5e1; color: var(--text); transform: translateX(-1px); }
+.back-btn:active { transform: translateX(0); }
+.live-indicator {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 32px; padding: 0 11px; border-radius: 999px;
+  background: #f8fafc; border: 1px solid var(--border);
+  font-size: 11.5px; color: var(--text-muted); white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.live-dot { width: 7px; height: 7px; border-radius: 50%; background: #cbd5e1; flex: 0 0 auto; }
+.live-indicator.is-live { background: #ecfdf5; border-color: #bbf7d0; color: #15803d; }
+.live-indicator.is-live .live-dot {
+  background: #22c55e; box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.18);
+  animation: ncLivePulse 1.8s ease-in-out infinite;
+}
+.live-indicator.is-idle .live-dot { background: #94a3b8; }
+.live-indicator.is-error { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
+.live-indicator.is-error .live-dot { background: #ef4444; }
+.refresh-glyph { display: inline-block; font-size: 13px; line-height: 1; }
+@keyframes ncLivePulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+
+/* ---------- 3. 进度卡片：状态文案 ---------- */
+.progress-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap;
+}
+.progress-head h3 { margin: 0; font-size: 16px; }
+#progressStatus {
+  font-size: 12.5px; font-weight: 500; padding: 3px 11px; border-radius: 999px;
+  background: #f1f5f9; color: var(--text-secondary); white-space: nowrap;
+}
+#progressStatus.status-pending { background: #fef3c7; color: #92400e; }
+#progressStatus.status-running { background: #dbeafe; color: #1e40af; }
+#progressStatus.status-paused { background: #fef9c3; color: #854d0e; }
+#progressStatus.status-completed { background: #dcfce7; color: #166534; }
+#progressStatus.status-failed { background: #fee2e2; color: #991b1b; }
+#progressStatus.status-cancelled { background: #f1f5f9; color: #475569; }
+
+/* ---------- 4. 扫描目标 / 端口范围：超长自动回缩 ---------- */
+.detail-grid { align-items: start; gap: 14px; }
+.detail-item { transition: border-color .18s ease, background .18s ease; border: 1px solid transparent; }
+.detail-item:hover { border-color: var(--border); }
+.detail-item .detail-value { word-break: break-all; font-size: 13px; line-height: 1.45; }
+.detail-item.detail-clamp .detail-value { font-family: var(--font-mono); font-size: 12px; }
+.detail-item.detail-clamp .detail-value.clampable {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; max-height: calc(2 * 1.45em);
+}
+.detail-item.detail-clamp.is-expanded .detail-value.clampable {
+  display: block; -webkit-line-clamp: unset;
+  overflow: auto; max-height: 180px; padding-right: 4px;
+}
+.detail-toggle {
+  display: none; align-items: center; margin: 6px auto 0; padding: 1px 9px;
+  border: none; border-radius: 999px; background: #e2e8f0; color: #475569;
+  font-size: 10.5px; font-family: var(--font); cursor: pointer; transition: var(--transition);
+}
+.detail-toggle:hover { background: #cbd5e1; color: #0f172a; }
+.detail-item.is-expanded .detail-toggle { background: #dbeafe; color: #1d4ed8; }
+
+/* ---------- 5. 新建任务弹窗：预置端口列表 ---------- */
+.port-preset-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; margin-bottom: 8px; flex-wrap: wrap;
+}
+.port-preset-title {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-weight: 500; font-size: 13px; color: var(--text-secondary);
+}
+.port-preset-sub {
+  font-size: 10.5px; font-weight: 500; color: var(--text-muted);
+  background: #f1f5f9; border-radius: 999px; padding: 1px 7px;
+}
+.port-preset-tools { display: flex; align-items: center; gap: 6px; }
+.port-preset-selected {
+  font-size: 11.5px; color: var(--text-muted); padding: 2px 9px;
+  border-radius: 999px; background: #f8fafc; border: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+}
+.port-preset-selected.has-selection {
+  color: #1d4ed8; background: #eff6ff; border-color: #bfdbfe; font-weight: 500;
+}
+.btn-mini {
+  border: 1px solid var(--border); background: #fff; color: var(--text-secondary);
+  border-radius: 999px; padding: 2px 10px; font-size: 11px; font-family: var(--font);
+  cursor: pointer; transition: var(--transition);
+}
+.btn-mini:hover { border-color: var(--primary); color: var(--primary); background: #f8faff; }
+.port-preset-list {
+  display: flex; flex-direction: column; gap: 12px;
+  max-height: 236px; overflow-y: auto;
+  padding: 2px 4px 4px 2px; margin-top: 2px;
+}
+.port-preset-list::-webkit-scrollbar { width: 8px; }
+.port-preset-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
+.port-preset-list::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+.port-preset-group-title {
+  font-size: 10.5px; font-weight: 600; letter-spacing: .08em;
+  color: var(--text-muted); text-transform: uppercase; margin-bottom: 6px;
+}
+.port-preset-group-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px;
+}
+/* 注意：这里必须带上 label 选择器，否则会被 .form-group label { display:block } 覆盖 */
+label.port-preset-item {
+  position: relative; display: flex; align-items: flex-start; flex-wrap: nowrap; gap: 9px;
+  padding: 8px 10px; border: 1.5px solid var(--border); border-radius: 10px;
+  background: #fff; cursor: pointer;
+  transition: border-color .16s ease, background .16s ease, box-shadow .16s ease;
+}
+.port-preset-item input[type="checkbox"] { position: absolute; opacity: 0; width: 0; height: 0; }
+.port-preset-check {
+  flex: 0 0 auto; width: 16px; height: 16px; margin-top: 1px; border-radius: 5px;
+  border: 1.5px solid #cbd5e1; background: #fff; color: #fff;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: background .14s ease, border-color .14s ease;
+}
+.port-preset-check svg { opacity: 0; transition: opacity .12s ease; }
+.port-preset-item:hover { border-color: #93c5fd; background: #f8faff; }
+.port-preset-item.selected {
+  border-color: var(--primary); background: #eff6ff;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.12);
+}
+.port-preset-item.selected .port-preset-check { background: var(--primary); border-color: var(--primary); }
+.port-preset-item.selected .port-preset-check svg { opacity: 1; }
+.port-preset-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1 1 auto; overflow: hidden; }
+.port-preset-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.port-preset-name { font-weight: 600; font-size: 12.5px; color: var(--text); }
+.port-preset-count {
+  margin-left: auto; font-size: 10.5px; color: #1d4ed8; background: #eef2ff;
+  border-radius: 999px; padding: 1px 7px; font-variant-numeric: tabular-nums;
+}
+.port-preset-desc {
+  font-size: 10.5px; color: var(--text-muted); line-height: 1.4;
+  flex-basis: auto; width: 100%;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  word-break: break-word;
+}
+.port-preset-udp {
+  padding: 1px 6px; border-radius: 999px; background: #ede9fe; color: #6d28d9;
+  font-size: 9.5px; font-weight: 700; letter-spacing: .04em;
+}
+
+/* 服务识别模式：目标缺少端口时的实时提示 */
+.target-warn {
+  margin-top: 6px; padding: 7px 10px;
+  background: #fef2f2; border: 1px solid #fecaca; border-radius: var(--radius);
+  color: #b91c1c; font-size: 11.5px; line-height: 1.5;
+  font-family: var(--font-mono);
+  word-break: break-all;
+}

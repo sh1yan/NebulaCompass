@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>星云罗盘 - 任务详情</title>
+    <link rel="icon" href="data:,">
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
@@ -25,7 +26,25 @@
         </nav>
         <main class="main-content">
             <header class="page-header">
-                <h1><a href="/tasks" style="text-decoration:none;color:inherit">&larr;</a> 任务详情</h1>
+                <h1>
+                    <button type="button" class="back-btn" id="backBtn" onclick="goBack()" title="返回上一页" aria-label="返回上一页">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+                             stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <line x1="19" y1="12" x2="5" y2="12"></line>
+                            <polyline points="11 18 5 12 11 6"></polyline>
+                        </svg>
+                    </button>
+                    任务详情
+                </h1>
+                <div class="page-header-actions">
+                    <span class="live-indicator" id="liveIndicator" title="详情页会自动刷新">
+                        <span class="live-dot"></span>
+                        <span id="liveUpdatedText">自动刷新</span>
+                    </span>
+                    <button type="button" class="btn btn-soft btn-soft-neutral" onclick="manualRefreshDetail()">
+                        <span class="refresh-glyph">&#x21bb;</span> 刷新
+                    </button>
+                </div>
             </header>
 
             <div id="taskInfo" class="card">
@@ -33,13 +52,11 @@
             </div>
 
             <div id="taskProgress" class="card" style="margin-top:16px;display:none">
-                <h3>扫描进度</h3>
-                <div class="phase-indicator">
-                    <div class="phase-step" id="phase-idle">等待</div>
-                    <div class="phase-step" id="phase-ping_scan">存活探测</div>
-                    <div class="phase-step" id="phase-port_scan">端口扫描</div>
-                    <div class="phase-step" id="phase-service_scan">服务识别</div>
-                    <div class="phase-step" id="phase-completed">完成</div>
+                <div class="progress-head">
+                    <h3>扫描进度</h3>
+                    <span class="progress-status" id="progressStatus"></span>
+                </div>
+                <div class="phase-indicator" id="phaseIndicator">
                 </div>
                 <div class="progress-bar">
                     <div id="progressFill" class="progress-fill" style="width:0%"></div>
@@ -48,14 +65,24 @@
                     <span id="progressText">0%</span>
                     <span id="elapsedText">耗时: 0s</span>
                 </div>
-<!--                <div id="phaseMessage" class="phase-message">等待开始...</div>-->
+                <div id="etaLine" class="eta-line" style="display:none">
+                    <span class="eta-chip" id="etaText">预计剩余: --</span>
+                    <span class="eta-chip" id="etaPercent">端口扫描: --</span>
+                    <span class="eta-chip" id="etaRate">速率: --</span>
+                </div>
             </div>
 
-            <div id="taskActions" class="card" style="margin-top:16px;text-align:center;display:none">
-                <button id="startBtn" class="btn btn-primary" onclick="startTask()">开始扫描</button>
-                <button id="cancelBtn" class="btn btn-danger" onclick="cancelTask()" style="display:none">取消任务</button>
-                <button id="viewResultsBtn" class="btn btn-success" onclick="viewResults()" style="display:none">查看结果</button>
-                <button id="viewOutputBtn" class="btn btn-sm" onclick="viewOutput()" style="display:none">实时输出</button>
+            <div id="taskActions" class="card action-card" style="margin-top:16px;display:none">
+                <div class="action-bar">
+                    <button id="startBtn" class="btn btn-action btn-solid btn-solid-primary" onclick="startTask()">开始扫描</button>
+                    <button id="pauseBtn" class="btn btn-action btn-solid btn-solid-warning" onclick="pauseTask()" style="display:none">暂停扫描</button>
+                    <button id="resumeBtn" class="btn btn-action btn-solid btn-solid-primary" onclick="resumeTask()" style="display:none">继续扫描</button>
+                    <button id="cancelBtn" class="btn btn-action btn-soft btn-soft-danger" onclick="cancelTask()" style="display:none">取消任务</button>
+                    <button id="viewResultsBtn" class="btn btn-action btn-soft btn-soft-success" onclick="viewResults()" style="display:none">查看结果</button>
+                    <button id="viewOutputBtn" class="btn btn-action btn-soft btn-soft-violet" onclick="viewOutput()" style="display:none">实时输出</button>
+                    <button id="exportXlsxBtn" class="btn btn-action btn-soft btn-soft-cyan" onclick="exportTaskXlsx(currentTaskId)" style="display:none">导出 XLSX</button>
+                    <button id="exportArchiveBtn" class="btn btn-action btn-soft btn-soft-cyan" title="导出完整过程存档 ZIP" onclick="exportTaskArchive(currentTaskId)" style="display:none">导出存档 ZIP</button>
+                </div>
             </div>
 
             <div id="taskSummary" class="card" style="margin-top:16px;display:none">
@@ -90,7 +117,7 @@
                 </div>
                 <div class="form-group">
                     <label for="newPassword">新密码</label>
-                    <input type="password" id="newPassword" required>
+                    <input type="password" id="newPassword" minlength="8" placeholder="至少 8 位" required>
                 </div>
                 <div class="form-group">
                     <label for="confirmPassword">确认新密码</label>

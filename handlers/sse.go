@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"NebulaCompass/database"
 	"NebulaCompass/scanner"
 	"encoding/json"
 	"fmt"
@@ -29,6 +30,11 @@ func (h *SSEHandler) Subscribe(w http.ResponseWriter, r *http.Request) {
 	taskID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
 		http.Error(w, "Invalid task ID", 400)
+		return
+	}
+	// 任务不存在时立即返回 404，避免前端 EventSource 永久挂着等不到任何事件
+	if database.GetDB().GetTask(taskID) == nil {
+		http.Error(w, "Task not found", 404)
 		return
 	}
 

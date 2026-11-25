@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>星云罗盘 - 文档说明</title>
+    <link rel="icon" href="data:,">
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
@@ -141,22 +142,57 @@ masscan --version</pre>
                 <p>设置页面中，填入路径后点击"验证"按钮，平台会自动检查路径是否正确。</p>
 
                 <h2>扫描模式说明</h2>
+                <p>每种模式只执行该模式定义的动作，不会串跑其它阶段：</p>
                 <ul>
-                    <li><strong>全套扫描</strong> - 进行完整的扫描流程：Ping存活探测 &rarr; Masscan端口扫描 &rarr; Nmap服务版本识别。最全面的扫描模式。</li>
-                    <li><strong>存活探测</strong> - 仅通过 Ping 扫描（nmap -sn）探测目标网段中在线的主机，不进行端口扫描。</li>
-                    <li><strong>端口扫描</strong> - 先进行存活探测，然后对存活主机进行 Masscan 端口扫描，不进行服务识别。</li>
-                    <li><strong>服务识别</strong> - 跳过存活探测和端口扫描，直接对指定的 IP:端口 进行 Nmap 服务版本识别（nmap -sV）。</li>
-                    <li><strong>Nmap端口扫描</strong> - 使用 Nmap 代替 Masscan 进行端口扫描，适合精确度要求更高的场景。</li>
+                    <li><strong>全套扫描</strong> - 存活探测（nmap -sn）&rarr; 端口扫描（masscan）&rarr; 服务识别（nmap -sV）。最完整的流程。</li>
+                    <li><strong>存活探测</strong> - <em>仅</em>执行 nmap -sn 存活探测，不端口扫描、不服务识别；端口范围不生效。</li>
+                    <li><strong>端口扫描</strong> - <em>仅</em>执行 masscan 端口扫描，不做存活探测、不做服务识别（目标直接交给 masscan）。</li>
+                    <li><strong>服务识别</strong> - <em>仅</em>执行 nmap -sV，不做存活探测、不做端口扫描。<strong>只扫描目标里写明的端口</strong>：目标必须写成 <code>IP:端口</code>（如 <code>10.0.0.1:22</code>、<code>example.com:443</code>），该模式下没有「端口范围 / 预置端口列表」，缺端口的目标会在创建时被拦下并提示修改。</li>
+                    <li><strong>Nmap端口扫描</strong> - <em>仅</em>用 nmap 做端口扫描（-sS，非 root 自动退化为 -sT），不做服务识别。</li>
+                </ul>
+
+                <h2>端口范围与预置端口列表</h2>
+                <ul>
+                    <li>新建任务时既支持自定义端口，也支持多选预置端口列表：常见 100 端口、常见 WEB 端口、常见约 1200 端口、数据库与 MQ 端口、常见 UDP 端口。</li>
+                    <li>预置端口列表按「常用 / 专项」分组展示，右上角实时显示「已选 N 项 · 约 X 个端口」，并提供<strong>全选 / 清空</strong>一键操作。</li>
+                    <li>勾选的预置列表会与自定义端口<strong>自动合并去重</strong>，弹窗底部会实时显示"最终端口规约"和端口数量。</li>
+                    <li>语法：TCP 直接写 <code>80,443,8000-8100</code>；UDP 加前缀 <code>U:</code>，例如 <code>80,443,U:53,161</code>。选到 UDP 预置时，nmap 会自动加 <code>-sU</code>，masscan 会自动使用 <code>U:</code> 写法。</li>
+                </ul>
+
+                <h2>进度显示与状态同步</h2>
+                <ul>
+                    <li>端口扫描阶段（masscan）会把 masscan 自带的进度百分比、预估剩余时间（remaining）与速率（kpps）实时显示在任务列表、任务详情与输出页。</li>
+                    <li>任务详情页的进度条也会按 masscan 的真实进度推进，而不是固定百分比。</li>
+                    <li>任务详情的「状态」徽标、阶段胶囊、当前阶段、扫描摘要与操作按钮都跟着任务状态实时变化（SSE 推送 + 自适应轮询：进行中 2 秒、空闲 12 秒），开始扫描后不会再停留在「等待」。</li>
+                    <li>进度卡片右上角的文字状态直接由最新快照推导：等待开始 → 正在启动扫描 → 正在执行：端口扫描 → 扫描完成（暂停 / 取消 / 失败各有对应文案），不会出现"已经扫到资产存活、还写着等待开始"的错位。</li>
+                    <li>页头右侧的绿点表示自动刷新在生效，并显示最近一次同步时间；手动点页头的「刷新」按钮可立即对齐一次。从任务列表进入详情、标签页切回前台、浏览器前进后退（含 bfcache 恢复）都会立刻按最新数据重载。</li>
+                    <li>扫描目标与端口范围这类可能很长的内容会在详情卡片里自动回缩为两行，点「展开全部」查看完整内容，再次点击「收起」。</li>
+                    <li>nmap 阶段（存活探测 / 服务识别 / Nmap端口扫描）nmap 本身不输出实时百分比，进度条会显示为流动的「扫描中…」状态，并持续显示已耗时；masscan 阶段则显示精确百分比与预计剩余时间。</li>
+                    <li>任务已结束（完成 / 失败 / 取消）后，阶段胶囊会标绿（完成）或标红（停在该阶段），可直接查看结果或导出。</li>
+                </ul>
+
+                <h2>暂停 / 继续 / 取消与结果存档</h2>
+                <ul>
+                    <li><strong>暂停</strong>：中断当前 nmap/masscan 进程，记录断点（存活主机、端口扫描输出、已完成服务识别的主机）。暂停请求会等到扫描进程真正退出后才返回，避免"刚暂停就点继续"报错。</li>
+                    <li><strong>继续</strong>：从断点续跑，已完成的阶段与已完成服务识别的主机会跳过。</li>
+                    <li>端口扫描阶段（masscan 无 checkpoint）不支持精确断点：继续时会重新执行该阶段，但已发现的端口会保留，界面会给出提示。</li>
+                    <li><strong>取消</strong>：终止任务，已扫描的数据全部保留（含端口扫描阶段中断时已发现的端口），可在"结果"页导出。</li>
+                    <li><strong>导出</strong>：任意状态（运行中/暂停/取消/失败/完成）都可导出：XLSX、CSV、JSON，或"过程存档 ZIP"（结果 + 存活主机 + 原始 XML/端口输出 + 命令记录 + 过程日志 + README）。</li>
+                    <li>重新扫描或删除任务前，系统会自动把当轮结果存档到 <code>./ExportResults/history/</code>，避免误操作丢数据。</li>
+                    <li>已完成的任务在任务列表与详情页都可点「重新扫描」，会清空结果并从头执行（旧结果已自动存档）。</li>
                 </ul>
 
                 <h2>注意事项</h2>
                 <ul>
                     <li>扫描内网时，请确保有合法授权。未经授权的扫描可能违反相关法律法规。</li>
+                    <li>Masscan 需要 root 权限；以普通用户运行时端口扫描会失败，可用「Nmap 端口扫描」模式替代（会自动退化为 -sT）。</li>
                     <li>Masscan 的高速扫描可能被网络设备检测并拦截，必要时降低扫描速率（--rate）。</li>
-                    <li>扫描结果会保存在 <code>./Data_folder/</code> 目录下的 SQLite 数据库中。</li>
+                    <li>扫描结果保存在 <code>./Data_folder/</code> 下的 SQLite 数据库；导出与存档文件位于 <code>./ExportResults/</code>。</li>
                     <li>默认监听端口为 8080，可通过 <code>-p</code> 参数，在平台启动时修改。</li>
-<!--                    <li>数据目录可通过 <code>PORTSCAN_DATA_DIR</code> 环境变量指定。</li>-->
-                    <li>默认管理员账号：<code>admin</code>，密码：<code>admin123</code>，登录后请立即修改密码。</li>
+                    <li>默认管理员账号：<code>admin</code>，密码：<code>admin123</code>，登录后请立即修改密码（新密码至少 8 位，弱口令会被拒绝）。</li>
+                    <li>登录会话保存在数据库中，服务重启后无需重新登录；修改密码会使其它设备的会话立即失效。</li>
+                    <li>扫描目标必须为 IP / CIDR / 域名 / <code>IP:端口</code> 形式；以 <code>-</code> 开头的字符串会被拒绝（防止被当成工具参数）。</li>
+                    <li>端口填写非法（例如 <code>abc</code>、<code>99999</code>）会直接报错，不会被静默替换为 1-65535。</li>
                 </ul>
             </div>
         </main>

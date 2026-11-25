@@ -115,18 +115,38 @@ func (db *DB) initSchema() error {
 			key TEXT UNIQUE NOT NULL,
 			value TEXT NOT NULL DEFAULT ''
 		)`,
+		`CREATE TABLE IF NOT EXISTS sessions (
+			token TEXT PRIMARY KEY,
+			user_id INTEGER NOT NULL,
+			expires_at INTEGER NOT NULL
+		)`,
 		`CREATE INDEX IF NOT EXISTS idx_results_task ON scan_results(task_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_results_ip ON scan_results(ip)`,
 		`CREATE INDEX IF NOT EXISTS idx_results_service ON scan_results(service)`,
+		`CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at)`,
 	}
 	for _, ddl := range tables {
 		if _, err := db.db.Exec(ddl); err != nil {
 			return fmt.Errorf("exec: %s: %w", ddl[:60], err)
 		}
 	}
-	// 迁移：添加 cmd_records 列（兼容旧数据库）
-	db.db.Exec("ALTER TABLE tasks ADD COLUMN cmd_records TEXT")
-	db.db.Exec("ALTER TABLE tasks ADD COLUMN scan_mode TEXT DEFAULT 'full'")
+	// 迁移：逐列补齐（兼容旧数据库，重复执行报错可忽略）
+	migrations := []string{
+		"ALTER TABLE tasks ADD COLUMN cmd_records TEXT",
+		"ALTER TABLE tasks ADD COLUMN scan_mode TEXT DEFAULT 'full'",
+		"ALTER TABLE tasks ADD COLUMN port_presets TEXT DEFAULT ''",
+		"ALTER TABLE tasks ADD COLUMN resume_stage TEXT DEFAULT ''",
+		"ALTER TABLE tasks ADD COLUMN service_done_hosts TEXT DEFAULT ''",
+		"ALTER TABLE tasks ADD COLUMN eta_seconds INTEGER DEFAULT 0",
+		"ALTER TABLE tasks ADD COLUMN eta_text TEXT DEFAULT ''",
+		"ALTER TABLE tasks ADD COLUMN scan_percent REAL DEFAULT 0",
+		"ALTER TABLE tasks ADD COLUMN rate_kpps REAL DEFAULT 0",
+		"ALTER TABLE tasks ADD COLUMN scan_log TEXT DEFAULT ''",
+	}
+	for _, m := range migrations {
+		db.db.Exec(m)
+	}
 	return db.initDefaults()
 }
 
@@ -186,35 +206,100 @@ func (db *DB) UpdateUser(user *models.User) {
 	db.db.Exec("UPDATE users SET password_hash = ?, salt = ? WHERE id = ?", user.PasswordHash, user.Salt, user.ID)
 }
 
+// ========== Session operations ==========
+// 会话落库，服务重启后登录态仍然有效
+
+func (db *DB) SaveSession(token string, userID int64, expiresAt time.Time) {
+	if token == "" {
+		return
+	}
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	if _, err := db.db.Exec(
+		"INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?) ON CONFLICT(token) DO UPDATE SET user_id = ?, expires_at = ?",
+		token, userID, expiresAt.Unix(), userID, expiresAt.Unix()); err != nil {
+		log.Printf("SaveSession error: %v", err)
+	}
+}
+
+func (db *DB) LoadSession(token string) (int64, time.Time, bool) {
+	if token == "" {
+		return 0, time.Time{}, false
+	}
+	var userID, expires int64
+	if err := db.db.QueryRow("SELECT user_id, expires_at FROM sessions WHERE token = ?", token).Scan(&userID, &expires); err != nil {
+		return 0, time.Time{}, false
+	}
+	return userID, time.Unix(expires, 0), true
+}
+
+func (db *DB) DeleteSession(token string) {
+	if token == "" {
+		return
+	}
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	if _, err := db.db.Exec("DELETE FROM sessions WHERE token = ?", token); err != nil {
+		log.Printf("DeleteSession error: %v", err)
+	}
+}
+
+// DeleteSessionsByUser 吊销用户全部会话，keepToken 非空时保留该会话
+func (db *DB) DeleteSessionsByUser(userID int64, keepToken string) int {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	res, err := db.db.Exec("DELETE FROM sessions WHERE user_id = ? AND token <> ?", userID, keepToken)
+	if err != nil {
+		log.Printf("DeleteSessionsByUser error: %v", err)
+		return 0
+	}
+	n, _ := res.RowsAffected()
+	return int(n)
+}
+
+func (db *DB) PurgeExpiredSessions(now time.Time) {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	if _, err := db.db.Exec("DELETE FROM sessions WHERE expires_at < ?", now.Unix()); err != nil {
+		log.Printf("PurgeExpiredSessions error: %v", err)
+	}
+}
+
 // ========== Task operations ==========
 
-const taskCols = "id, name, target, COALESCE(scan_mode,'full'), port_range, status, current_phase, progress_pct, total_hosts, scanned_hosts, total_ports, scanned_ports, elapsed_seconds, created_at, COALESCE(started_at,''), COALESCE(completed_at,''), COALESCE(error_message,''), COALESCE(alive_hosts,''), COALESCE(ping_output,''), COALESCE(port_scan_output,''), COALESCE(service_output,''), COALESCE(cmd_records,'')"
+const taskCols = "(SELECT COUNT(*) FROM scan_results sr WHERE sr.task_id = tasks.id), id, name, target, COALESCE(scan_mode,'full'), port_range, COALESCE(port_presets,''), status, current_phase, progress_pct, total_hosts, scanned_hosts, total_ports, scanned_ports, elapsed_seconds, created_at, COALESCE(started_at,''), COALESCE(completed_at,''), COALESCE(error_message,''), COALESCE(alive_hosts,''), COALESCE(ping_output,''), COALESCE(port_scan_output,''), COALESCE(service_output,''), COALESCE(cmd_records,''), COALESCE(resume_stage,''), COALESCE(service_done_hosts,''), COALESCE(eta_seconds,0), COALESCE(eta_text,''), COALESCE(scan_percent,0), COALESCE(rate_kpps,0), COALESCE(scan_log,'')"
 
 func scanTask(scanner interface{ Scan(...interface{}) error }) (*models.Task, error) {
 	t := &models.Task{}
-	err := scanner.Scan(&t.ID, &t.Name, &t.Target, &t.ScanMode, &t.PortRange, &t.Status, &t.CurrentPhase, &t.ProgressPct,
+	err := scanner.Scan(&t.ResultCount, &t.ID, &t.Name, &t.Target, &t.ScanMode, &t.PortRange, &t.PortPresetsStr, &t.Status, &t.CurrentPhase, &t.ProgressPct,
 		&t.TotalHosts, &t.ScannedHosts, &t.TotalPorts, &t.ScannedPorts, &t.ElapsedSeconds,
 		&t.CreatedAt, &t.StartedAt, &t.CompletedAt, &t.ErrorMessage,
-		&t.AliveHostsStr, &t.PingOutput, &t.PortScanOutput, &t.ServiceOutput, &t.CmdRecords)
+		&t.AliveHostsStr, &t.PingOutput, &t.PortScanOutput, &t.ServiceOutput, &t.CmdRecords,
+		&t.ResumeStage, &t.ServiceDoneStr, &t.EtaSeconds, &t.EtaText, &t.ScanPercent, &t.RateKpps, &t.ScanLog)
 	if err != nil {
 		return nil, err
 	}
 	t.ParseAliveHosts()
+	t.ParseServiceDone()
+	t.ParsePortPresets()
 	return t, nil
 }
 
-func (db *DB) CreateTaskWithMode(name, target, portRange, scanMode string) *models.Task {
+func (db *DB) CreateTaskWithMode(name, target, portRange, scanMode, portPresets string) *models.Task {
 	now := time.Now().Format(time.RFC3339)
 	result, err := db.db.Exec(
-		"INSERT INTO tasks (name, target, scan_mode, port_range, status, current_phase, progress_pct, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?)",
-		name, target, scanMode, portRange, models.StatusPending, models.PhaseIdle, now,
+		"INSERT INTO tasks (name, target, scan_mode, port_range, port_presets, status, current_phase, progress_pct, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)",
+		name, target, scanMode, portRange, portPresets, models.StatusPending, models.PhaseIdle, now,
 	)
 	if err != nil {
 		log.Printf("CreateTask error: %v", err)
 		return nil
 	}
 	id, _ := result.LastInsertId()
-	return &models.Task{ID: id, Name: name, Target: target, ScanMode: scanMode, PortRange: portRange, Status: models.StatusPending, CurrentPhase: models.PhaseIdle, ProgressPct: 0, CreatedAt: now}
+	task := &models.Task{ID: id, Name: name, Target: target, ScanMode: scanMode, PortRange: portRange,
+		PortPresetsStr: portPresets, Status: models.StatusPending, CurrentPhase: models.PhaseIdle, ProgressPct: 0, CreatedAt: now}
+	task.ParsePortPresets()
+	return task
 }
 
 func (db *DB) GetTask(id int64) *models.Task {
@@ -245,17 +330,62 @@ func (db *DB) GetAllTasks() []*models.Task {
 
 func (db *DB) UpdateTask(task *models.Task) {
 	task.SerializeAliveHosts()
-	_, err := db.db.Exec(`UPDATE tasks SET name=?, target=?, scan_mode=?, port_range=?, status=?, current_phase=?,
+	task.SerializeServiceDone()
+	task.SerializePortPresets()
+	_, err := db.db.Exec(`UPDATE tasks SET name=?, target=?, scan_mode=?, port_range=?, port_presets=?, status=?, current_phase=?,
 		progress_pct=?, total_hosts=?, scanned_hosts=?, total_ports=?, scanned_ports=?,
 		elapsed_seconds=?, started_at=?, completed_at=?, error_message=?, alive_hosts=?,
-		ping_output=?, port_scan_output=?, service_output=?, cmd_records=? WHERE id=?`,
-		task.Name, task.Target, task.ScanMode, task.PortRange, task.Status, task.CurrentPhase,
+		ping_output=?, port_scan_output=?, service_output=?, cmd_records=?,
+		resume_stage=?, service_done_hosts=?, eta_seconds=?, eta_text=?, scan_percent=?, rate_kpps=? WHERE id=?`,
+		task.Name, task.Target, task.ScanMode, task.PortRange, task.PortPresetsStr, task.Status, task.CurrentPhase,
 		task.ProgressPct, task.TotalHosts, task.ScannedHosts, task.TotalPorts, task.ScannedPorts,
 		task.ElapsedSeconds, task.StartedAt, task.CompletedAt, task.ErrorMessage,
-		task.AliveHostsStr, task.PingOutput, task.PortScanOutput, task.ServiceOutput, task.CmdRecords, task.ID)
+		task.AliveHostsStr, task.PingOutput, task.PortScanOutput, task.ServiceOutput, task.CmdRecords,
+		task.ResumeStage, task.ServiceDoneStr, task.EtaSeconds, task.EtaText, task.ScanPercent, task.RateKpps, task.ID)
 	if err != nil {
 		log.Printf("UpdateTask error: %v", err)
 	}
+}
+
+// UpdateElapsed 仅更新耗时，避免整行重写（scan_log 可能较大）
+func (db *DB) UpdateElapsed(taskID int64, seconds int64) {
+	db.db.Exec("UPDATE tasks SET elapsed_seconds = ? WHERE id = ?", seconds, taskID)
+}
+
+// AppendScanLog 追加上限受控的过程日志（暂停/取消后仍可导出）
+func (db *DB) AppendScanLog(taskID int64, chunk string, maxBytes int) {
+	if chunk == "" {
+		return
+	}
+	if maxBytes <= 0 {
+		maxBytes = 512 * 1024
+	}
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	_, err := db.db.Exec(
+		`UPDATE tasks SET scan_log = substr(COALESCE(scan_log,'') || ?, -?) WHERE id = ?`,
+		chunk, maxBytes, taskID)
+	if err != nil {
+		log.Printf("AppendScanLog error: %v", err)
+	}
+}
+
+// CountResults 统计某任务的端口结果条数
+func (db *DB) CountResults(taskID int64) int {
+	var n int
+	db.db.QueryRow("SELECT COUNT(*) FROM scan_results WHERE task_id = ?", taskID).Scan(&n)
+	return n
+}
+
+// ResetTaskForRerun 清空扫描数据，保留任务基础信息，用于“重新扫描”
+func (db *DB) ResetTaskForRerun(taskID int64) {
+	db.db.Exec("DELETE FROM scan_results WHERE task_id = ?", taskID)
+	db.db.Exec(`UPDATE tasks SET status=?, current_phase=?, progress_pct=0, total_hosts=0, scanned_hosts=0,
+		total_ports=0, scanned_ports=0, elapsed_seconds=0, started_at='', completed_at='', error_message='',
+		alive_hosts='', ping_output='', port_scan_output='', service_output='', cmd_records='',
+		resume_stage='', service_done_hosts='', eta_seconds=0, eta_text='', scan_percent=0, rate_kpps=0,
+		scan_log='' WHERE id = ?`,
+		models.StatusPending, models.PhaseIdle, taskID)
 }
 
 func (db *DB) DeleteTask(id int64) {
@@ -263,12 +393,69 @@ func (db *DB) DeleteTask(id int64) {
 	db.db.Exec("DELETE FROM tasks WHERE id = ?", id)
 }
 
+// MarkInterruptedTasks 服务重启后，把仍处于 running 的任务标记为已暂停（可续扫）
+func (db *DB) MarkInterruptedTasks() int64 {
+	res, err := db.db.Exec("UPDATE tasks SET status = ?, eta_seconds = 0, eta_text = '', rate_kpps = 0 WHERE status = ?",
+		models.StatusPaused, models.StatusRunning)
+	if err != nil {
+		log.Printf("MarkInterruptedTasks error: %v", err)
+		return 0
+	}
+	n, _ := res.RowsAffected()
+	return n
+}
+
 // ========== ScanResult operations ==========
 
-func (db *DB) AddResults(results []*models.ScanResult) {
+// AddResults 批量写入结果；任何一步失败都会回滚并返回错误（不再静默丢数据）
+func (db *DB) AddResults(results []*models.ScanResult) error {
+	if len(results) == 0 {
+		return nil
+	}
 	now := time.Now().Format(time.RFC3339)
-	tx, _ := db.db.Begin()
-	stmt, _ := tx.Prepare("INSERT INTO scan_results (task_id, ip, port, protocol, state, service, product, version, extra_info, os_details, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)")
+	tx, err := db.db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	stmt, err := tx.Prepare("INSERT INTO scan_results (task_id, ip, port, protocol, state, service, product, version, extra_info, os_details, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)")
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("prepare insert: %w", err)
+	}
+	defer stmt.Close()
+	for _, r := range results {
+		r.CreatedAt = now
+		if _, err := stmt.Exec(r.TaskID, r.IP, r.Port, r.Protocol, r.State,
+			r.Service, r.Product, r.Version, r.ExtraInfo, r.OSDetails, r.CreatedAt); err != nil {
+			tx.Rollback()
+			return fmt.Errorf("insert result %s:%d: %w", r.IP, r.Port, err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+	return nil
+}
+
+// ReplaceHostResults 用新结果替换某主机在任务下的全部结果（避免续扫重复写入）
+func (db *DB) ReplaceHostResults(taskID int64, ip string, results []*models.ScanResult) {
+	tx, err := db.db.Begin()
+	if err != nil {
+		log.Printf("ReplaceHostResults begin error: %v", err)
+		return
+	}
+	if _, err := tx.Exec("DELETE FROM scan_results WHERE task_id = ? AND ip = ?", taskID, ip); err != nil {
+		log.Printf("ReplaceHostResults delete error: %v", err)
+		tx.Rollback()
+		return
+	}
+	now := time.Now().Format(time.RFC3339)
+	stmt, err := tx.Prepare("INSERT INTO scan_results (task_id, ip, port, protocol, state, service, product, version, extra_info, os_details, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)")
+	if err != nil {
+		log.Printf("ReplaceHostResults prepare error: %v", err)
+		tx.Rollback()
+		return
+	}
 	defer stmt.Close()
 	for _, r := range results {
 		r.CreatedAt = now
@@ -299,26 +486,33 @@ func (db *DB) GetResultsByTask(taskID int64) []*models.ScanResult {
 
 func (db *DB) GetResultsSummary(taskID int64) map[string]int {
 	summary := map[string]int{"total": 0, "open": 0, "filtered": 0, "closed": 0, "services": 0}
-	rows, err := db.db.Query("SELECT state, service FROM scan_results WHERE task_id = ?", taskID)
+	rows, err := db.db.Query("SELECT state, COUNT(*) FROM scan_results WHERE task_id = ? GROUP BY state", taskID)
 	if err != nil {
 		return summary
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var state, service string
-		rows.Scan(&state, &service)
-		summary["total"]++
+		var state string
+		var n int
+		if err := rows.Scan(&state, &n); err != nil {
+			continue
+		}
+		summary["total"] += n
 		switch state {
 		case "open":
-			summary["open"]++
-		case "filtered":
-			summary["filtered"]++
+			summary["open"] += n
+		case "open|filtered":
+			summary["filtered"] += n
 		case "closed":
-			summary["closed"]++
+			summary["closed"] += n
+		default:
+			summary["open"] += n // 兼容历史数据里非标准 state
 		}
-		if service != "" {
-			summary["services"]++
-		}
+	}
+	// 服务识别数：单独的聚合查询，避免把全部行拉到内存
+	var services int
+	if err := db.db.QueryRow("SELECT COUNT(*) FROM scan_results WHERE task_id = ? AND COALESCE(service,'') <> ''", taskID).Scan(&services); err == nil {
+		summary["services"] = services
 	}
 	return summary
 }
@@ -347,14 +541,31 @@ func (db *DB) GetAllSettings() []*models.Setting {
 	return list
 }
 
-func (db *DB) UpdateSettings(settings map[string]string) {
-	tx, _ := db.db.Begin()
-	stmt, _ := tx.Prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?")
+// UpdateSettings 批量写设置；失败时回滚并返回错误
+func (db *DB) UpdateSettings(settings map[string]string) error {
+	if len(settings) == 0 {
+		return nil
+	}
+	tx, err := db.db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	stmt, err := tx.Prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?")
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("prepare upsert: %w", err)
+	}
 	defer stmt.Close()
 	for k, v := range settings {
-		stmt.Exec(k, v, v)
+		if _, err := stmt.Exec(k, v, v); err != nil {
+			tx.Rollback()
+			return fmt.Errorf("upsert setting %s: %w", k, err)
+		}
 	}
-	tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+	return nil
 }
 
 // ========== Summary ==========
@@ -368,7 +579,8 @@ func (db *DB) GetHostPortSummary(taskID int64) []HostPortSummary {
 	results := db.GetResultsByTask(taskID)
 	hostMap := make(map[string]map[int]bool)
 	for _, r := range results {
-		if r.State != "open" {
+		// open 与 open|filtered 都算作开放端口（口径与统计卡片一致）
+		if r.State != "open" && r.State != "open|filtered" {
 			continue
 		}
 		if hostMap[r.IP] == nil {
@@ -393,16 +605,25 @@ func (db *DB) GetHostPortSummary(taskID int64) []HostPortSummary {
 	return summaries
 }
 
+// escapeLike 转义 LIKE 通配符，避免用户输入的 % / _ 变成通配符
+func escapeLike(q string) string {
+	q = strings.ReplaceAll(q, "\\", "\\\\")
+	q = strings.ReplaceAll(q, "%", "\\%")
+	q = strings.ReplaceAll(q, "_", "\\_")
+	return q
+}
+
 func (db *DB) SearchOpenPorts(taskID int64, query string) []*models.ScanResult {
 	if query == "" {
 		return db.GetResultsByTask(taskID)
 	}
-	q := fmt.Sprintf("%%%s%%", strings.ReplaceAll(query, "'", "''"))
+	q := fmt.Sprintf("%%%s%%", escapeLike(strings.TrimSpace(query)))
+	// 与列表保持一致：不按 state 过滤（否则搜索结果会漏掉非 open 的行）
 	rows, err := db.db.Query(
 		`SELECT id, task_id, ip, port, protocol, state, COALESCE(service,''), COALESCE(product,''), COALESCE(version,''), COALESCE(extra_info,''), COALESCE(os_details,''), created_at FROM scan_results 
-		WHERE task_id = ? AND state = 'open' AND (ip LIKE ? OR service LIKE ? OR product LIKE ? OR version LIKE ?)
+		WHERE task_id = ? AND (ip LIKE ? ESCAPE '\' OR protocol LIKE ? ESCAPE '\' OR service LIKE ? ESCAPE '\' OR product LIKE ? ESCAPE '\' OR version LIKE ? ESCAPE '\' OR os_details LIKE ? ESCAPE '\')
 		ORDER BY ip, port`,
-		taskID, q, q, q, q)
+		taskID, q, q, q, q, q, q)
 	if err != nil {
 		return nil
 	}

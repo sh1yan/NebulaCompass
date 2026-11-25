@@ -1,50 +1,103 @@
 package handlers
 
 import (
-	"NebulaCompass/database"
-	"NebulaCompass/models"
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
-	"path/filepath"
+	"net/url"
 	"strconv"
 	"strings"
 
-	"github.com/xuri/excelize/v2"
+	"NebulaCompass/database"
+	"NebulaCompass/models"
 )
 
 type ResultHandler struct{}
 
 func NewResultHandler() *ResultHandler { return &ResultHandler{} }
 
-func (h *ResultHandler) List(w http.ResponseWriter, r *http.Request) {
-	idStr := strings.TrimPrefix(r.URL.Path, "/api/results/")
-	taskID, err := strconv.ParseInt(idStr, 10, 64)
+// asciiFileName 把任务名转成纯 ASCII 的兜底文件名（非 ASCII 字符替换为下划线）
+func asciiFileName(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if r > 127 || r == '"' || r == '\\' {
+			b.WriteByte('_')
+			continue
+		}
+		b.WriteRune(r)
+	}
+	out := strings.Trim(b.String(), "_ ")
+	if out == "" {
+		out = "task"
+	}
+	if len(out) > 60 {
+		out = out[:60]
+	}
+	return out
+}
+
+// sanitizeHeaderName 清洗用于 header 的任务名：去掉路径分隔符、控制字符与引号，保留中文与空格
+func sanitizeHeaderName(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if r < 0x20 || r == 0x7f || r == '"' || r == '\\' || r == '/' {
+			b.WriteRune('_')
+			continue
+		}
+		b.WriteRune(r)
+	}
+	out := strings.Trim(b.String(), "_ ")
+	if out == "" {
+		return "task"
+	}
+	if r := []rune(out); len(r) > 60 {
+		out = string(r[:60])
+	}
+	return out
+}
+
+// contentDisposition 同时提供 ASCII 兜底名与 RFC 5987 的 filename*，避免中文名在浏览器里乱码
+func contentDisposition(name string, taskID int64, ext string) string {
+	pretty := sanitizeHeaderName(name)
+	utf8Name := fmt.Sprintf("%s_%d%s", pretty, taskID, ext)
+	return fmt.Sprintf(`attachment; filename="%s_%d%s"; filename*=UTF-8''%s`,
+		asciiFileName(name), taskID, ext, url.PathEscape(utf8Name))
+}
+
+func mustTaskID(w http.ResponseWriter, raw string) (int64, bool) {
+	taskID, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
 	if err != nil {
 		http.Error(w, "Invalid task ID", 400)
+		return 0, false
+	}
+	return taskID, true
+}
+
+func (h *ResultHandler) List(w http.ResponseWriter, r *http.Request) {
+	idStr := strings.TrimPrefix(r.URL.Path, "/api/results/")
+	taskID, ok := mustTaskID(w, idStr)
+	if !ok {
 		return
 	}
 
 	db := database.GetDB()
-	results := db.GetResultsByTask(taskID)
+	query := r.URL.Query().Get("search")
+	var results []*models.ScanResult
+	if query != "" {
+		results = db.SearchOpenPorts(taskID, query)
+	} else {
+		results = db.GetResultsByTask(taskID)
+	}
 	if results == nil {
 		results = []*models.ScanResult{}
 	}
-
-	query := r.URL.Query().Get("search")
-	if query != "" {
-		results = db.SearchOpenPorts(taskID, query)
-	}
-
 	json.NewEncoder(w).Encode(results)
 }
 
 func (h *ResultHandler) Summary(w http.ResponseWriter, r *http.Request) {
 	idStr := strings.TrimPrefix(r.URL.Path, "/api/results/summary/")
-	taskID, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		http.Error(w, "Invalid task ID", 400)
+	taskID, ok := mustTaskID(w, idStr)
+	if !ok {
 		return
 	}
 
@@ -54,11 +107,16 @@ func (h *ResultHandler) Summary(w http.ResponseWriter, r *http.Request) {
 	hostSummary := db.GetHostPortSummary(taskID)
 
 	aliveOnly := []string{}
+	taskInfo := map[string]interface{}{}
 	if task != nil {
 		for _, ip := range task.AliveHosts {
+			ip = strings.TrimSpace(ip)
+			if ip == "" {
+				continue
+			}
 			hasOpen := false
-			for _, h := range hostSummary {
-				if h.IP == ip {
+			for _, hs := range hostSummary {
+				if hs.IP == ip {
 					hasOpen = true
 					break
 				}
@@ -67,20 +125,36 @@ func (h *ResultHandler) Summary(w http.ResponseWriter, r *http.Request) {
 				aliveOnly = append(aliveOnly, ip)
 			}
 		}
+		taskInfo = map[string]interface{}{
+			"id":            task.ID,
+			"status":        task.Status,
+			"status_text":   models.StatusLabel(task.Status),
+			"scan_mode":     task.ScanMode,
+			"mode_text":     models.ModeLabel(task.ScanMode),
+			"current_phase": task.CurrentPhase,
+			"progress_pct":  task.ProgressPct,
+			"eta_seconds":   task.EtaSeconds,
+			"eta_text":      task.EtaText,
+			"scan_percent":  task.ScanPercent,
+			"rate_kpps":     task.RateKpps,
+			"resume_stage":  task.ResumeStage,
+			"has_data":      len(hostSummary) > 0 || len(task.AliveHosts) > 0 || task.PortScanOutput != "" || task.PingOutput != "",
+		}
 	}
 
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"summary":    summary,
 		"hosts":      hostSummary,
 		"alive_only": aliveOnly,
+		"task":       taskInfo,
 	})
 }
 
+// ExportXLSX 导出扫描结果，支持 format=xlsx|csv|json，任意状态（含暂停/取消）均可导出
 func (h *ResultHandler) ExportXLSX(w http.ResponseWriter, r *http.Request) {
 	idStr := strings.TrimPrefix(r.URL.Path, "/api/results/export/")
-	taskID, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		http.Error(w, "Invalid task ID", 400)
+	taskID, ok := mustTaskID(w, idStr)
+	if !ok {
 		return
 	}
 
@@ -93,145 +167,72 @@ func (h *ResultHandler) ExportXLSX(w http.ResponseWriter, r *http.Request) {
 
 	results := db.GetResultsByTask(taskID)
 	hostSummary := db.GetHostPortSummary(taskID)
+	format := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("format")))
+	base := task.Name
 
-	f := excelize.NewFile()
-	defer f.Close()
-
-	f.SetColWidth("Sheet1", "A", "J", 18)
-
-	f.SetCellValue("Sheet1", "A1", "星云罗盘 - 资产测绘报告")
-	f.SetCellValue("Sheet1", "A2", fmt.Sprintf("任务名称: %s", task.Name))
-	f.SetCellValue("Sheet1", "A3", fmt.Sprintf("扫描目标: %s", task.Target))
-	f.SetCellValue("Sheet1", "A4", fmt.Sprintf("扫描模式: %s", getModeLabel(task.ScanMode)))
-	portRangeDisplay := task.PortRange
-	if task.ScanMode == models.ScanModeServiceOnly {
-		portRangeDisplay = "按目标指定"
-	}
-	f.SetCellValue("Sheet1", "A5", fmt.Sprintf("端口范围: %s", portRangeDisplay))
-	f.SetCellValue("Sheet1", "A6", fmt.Sprintf("扫描时间: %s", task.CreatedAt))
-	if task.CompletedAt != "" {
-		f.SetCellValue("Sheet1", "A7", fmt.Sprintf("完成时间: %s", task.CompletedAt))
-	}
-	f.SetCellValue("Sheet1", "A8", fmt.Sprintf("存活主机数: %d", task.TotalHosts))
-	f.SetCellValue("Sheet1", "A9", fmt.Sprintf("开放端口主机数: %d", len(hostSummary)))
-	f.SetCellValue("Sheet1", "A10", fmt.Sprintf("开放端口数: %d", task.TotalPorts))
-
-	titleStyle, _ := f.NewStyle(&excelize.Style{
-		Font: &excelize.Font{Bold: true, Size: 16},
-	})
-	f.SetCellStyle("Sheet1", "A1", "A1", titleStyle)
-
-	headers := []string{"IP", "端口", "协议", "状态", "服务", "产品", "版本", "额外信息", "操作系统"}
-	headerRow := 11
-	headerStyle, _ := f.NewStyle(&excelize.Style{
-		Font: &excelize.Font{Bold: true, Color: "FFFFFF"},
-		Fill: excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"4472C4"}},
-	})
-	for i, h := range headers {
-		cell, _ := excelize.CoordinatesToCellName(i+1, headerRow)
-		f.SetCellValue("Sheet1", cell, h)
-		f.SetCellStyle("Sheet1", cell, cell, headerStyle)
-	}
-
-	dataRow := headerRow + 1
-	for _, r := range results {
-		f.SetCellValue("Sheet1", fmt.Sprintf("A%d", dataRow), r.IP)
-		f.SetCellValue("Sheet1", fmt.Sprintf("B%d", dataRow), r.Port)
-		f.SetCellValue("Sheet1", fmt.Sprintf("C%d", dataRow), r.Protocol)
-		f.SetCellValue("Sheet1", fmt.Sprintf("D%d", dataRow), r.State)
-		f.SetCellValue("Sheet1", fmt.Sprintf("E%d", dataRow), r.Service)
-		f.SetCellValue("Sheet1", fmt.Sprintf("F%d", dataRow), r.Product)
-		f.SetCellValue("Sheet1", fmt.Sprintf("G%d", dataRow), r.Version)
-		f.SetCellValue("Sheet1", fmt.Sprintf("H%d", dataRow), r.ExtraInfo)
-		f.SetCellValue("Sheet1", fmt.Sprintf("I%d", dataRow), r.OSDetails)
-		dataRow++
-	}
-
-	// 添加存活主机Sheet
-	if len(task.AliveHosts) > 0 {
-		f.NewSheet("存活主机")
-		f.SetColWidth("存活主机", "A", "D", 20)
-
-		f.SetCellValue("存活主机", "A1", "存活主机列表")
-		aliveTitleStyle, _ := f.NewStyle(&excelize.Style{
-			Font: &excelize.Font{Bold: true, Size: 14},
-		})
-		f.SetCellStyle("存活主机", "A1", "A1", aliveTitleStyle)
-
-		f.SetCellValue("存活主机", "A2", "总数")
-		f.SetCellValue("存活主机", "B2", len(task.AliveHosts))
-		f.SetCellValue("存活主机", "A3", "有开放端口主机")
-		f.SetCellValue("存活主机", "B3", len(hostSummary))
-		aliveOnlyLabel := "仅存活无端口主机"
-		if task.ScanMode == models.ScanModeAliveOnly {
-			aliveOnlyLabel = "仅存活主机"
-		}
-		f.SetCellValue("存活主机", "A4", aliveOnlyLabel)
-		onlyAlive := len(task.AliveHosts) - len(hostSummary)
-		if onlyAlive < 0 {
-			onlyAlive = 0
-		}
-		f.SetCellValue("存活主机", "B4", onlyAlive)
-
-		aliveHeaders := []string{"序号", "IP地址", "状态", "开放端口"}
-		aliveHeaderRow := 6
-		for i, h := range aliveHeaders {
-			cell, _ := excelize.CoordinatesToCellName(i+1, aliveHeaderRow)
-			f.SetCellValue("存活主机", cell, h)
-			f.SetCellStyle("存活主机", cell, cell, headerStyle)
-		}
-
-		// 构建有端口的主机map
-		hostPortMap := make(map[string][]int)
-		for _, h := range hostSummary {
-			hostPortMap[h.IP] = h.Ports
-		}
-
-		aliveDataRow := aliveHeaderRow + 1
-		for idx, ip := range task.AliveHosts {
-			ports := hostPortMap[ip]
-			f.SetCellValue("存活主机", fmt.Sprintf("A%d", aliveDataRow), idx+1)
-			f.SetCellValue("存活主机", fmt.Sprintf("B%d", aliveDataRow), ip)
-			if len(ports) > 0 {
-				f.SetCellValue("存活主机", fmt.Sprintf("C%d", aliveDataRow), "存活+有开放端口")
-				portStrs := make([]string, len(ports))
-				for i, p := range ports {
-					portStrs[i] = fmt.Sprintf("%d", p)
-				}
-				f.SetCellValue("存活主机", fmt.Sprintf("D%d", aliveDataRow), strings.Join(portStrs, ", "))
-			} else {
-				f.SetCellValue("存活主机", fmt.Sprintf("C%d", aliveDataRow), "存活")
-				noPortLabel := "无开放端口"
-				if task.ScanMode == models.ScanModeAliveOnly {
-					noPortLabel = ""
-				}
-				f.SetCellValue("存活主机", fmt.Sprintf("D%d", aliveDataRow), noPortLabel)
-			}
-			aliveDataRow++
-		}
-	}
-
-	exportDir := "./ExportResults"
-	os.MkdirAll(exportDir, 0700)
-	safeName := strings.ReplaceAll(task.Name, " ", "_")
-	fileName := fmt.Sprintf("%s_%d.xlsx", safeName, task.ID)
-	filePath := filepath.Join(exportDir, fileName)
-
-	if err := f.SaveAs(filePath); err != nil {
-		http.Error(w, fmt.Sprintf("Export failed: %v", err), 500)
+	switch format {
+	case "csv":
+		data := resultsCSV(results)
+		w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+		w.Header().Set("Content-Disposition", contentDisposition(base, task.ID, ".csv"))
+		w.Write(data)
+		return
+	case "json":
+		data := resultsJSON(task, results, hostSummary)
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.Header().Set("Content-Disposition", contentDisposition(base, task.ID, ".json"))
+		w.Write(data)
 		return
 	}
 
+	f, err := buildWorkbook(task, results, hostSummary)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Export failed: %v", err), 500)
+		return
+	}
+	defer f.Close()
+
 	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", fileName))
-	http.ServeFile(w, r, filePath)
+	w.Header().Set("Content-Disposition", contentDisposition(base, task.ID, ".xlsx"))
+	if err := f.Write(w); err != nil {
+		http.Error(w, fmt.Sprintf("Export failed: %v", err), 500)
+	}
+}
+
+// ExportArchive 导出完整过程存档（zip：结果 + 原始输出 + 过程日志 + 命令记录）
+func (h *ResultHandler) ExportArchive(w http.ResponseWriter, r *http.Request) {
+	idStr := strings.TrimPrefix(r.URL.Path, "/api/results/archive/")
+	taskID, ok := mustTaskID(w, idStr)
+	if !ok {
+		return
+	}
+
+	db := database.GetDB()
+	task := db.GetTask(taskID)
+	if task == nil {
+		http.Error(w, "Task not found", 404)
+		return
+	}
+	results := db.GetResultsByTask(taskID)
+	hostSummary := db.GetHostPortSummary(taskID)
+
+	files, err := taskArchiveFiles(task, results, hostSummary)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Archive failed: %v", err), 500)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", contentDisposition(task.Name, task.ID, "_archive.zip"))
+	if err := writeZipTo(w, files); err != nil {
+		http.Error(w, fmt.Sprintf("Archive failed: %v", err), 500)
+	}
 }
 
 func (h *ResultHandler) GetOSSummary(w http.ResponseWriter, r *http.Request) {
 	idStr := strings.TrimPrefix(r.URL.Path, "/api/results/os/")
-	taskID, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		http.Error(w, "Invalid task ID", 400)
+	taskID, ok := mustTaskID(w, idStr)
+	if !ok {
 		return
 	}
 
@@ -248,9 +249,8 @@ func (h *ResultHandler) GetOSSummary(w http.ResponseWriter, r *http.Request) {
 
 func (h *ResultHandler) GetServiceSummary(w http.ResponseWriter, r *http.Request) {
 	idStr := strings.TrimPrefix(r.URL.Path, "/api/results/services/")
-	taskID, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		http.Error(w, "Invalid task ID", 400)
+	taskID, ok := mustTaskID(w, idStr)
+	if !ok {
 		return
 	}
 
@@ -266,22 +266,5 @@ func (h *ResultHandler) GetServiceSummary(w http.ResponseWriter, r *http.Request
 }
 
 func (h *ResultHandler) PageResults(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, "templates/results.html")
-}
-
-func getModeLabel(mode string) string {
-	switch mode {
-	case models.ScanModeFull:
-		return "全套扫描"
-	case models.ScanModeAliveOnly:
-		return "存活探测"
-	case models.ScanModePortOnly:
-		return "端口扫描"
-	case models.ScanModeServiceOnly:
-		return "服务识别"
-	case models.ScanModeNmapPort:
-		return "Nmap端口扫描"
-	default:
-		return "全套扫描"
-	}
+	ServePage(w, r, "results.html")
 }
